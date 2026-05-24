@@ -258,6 +258,13 @@ Suggested package layout:
   - Mitigation: theme constraints + hard contrast checks
 - Risk: over-long generation latency
   - Mitigation: parallel agent stages + cached intermediate artifacts
+
+## Production Docs
+
+- `PRODUCTION_ROADMAP.md`
+- `docs/ONBOARDING_AND_OPERATIONS.md`
+- `docs/INCIDENT_RUNBOOK.md`
+- `docs/DEPLOYMENT_ENVIRONMENTS.md`
 - Risk: low trust in AI edits
   - Mitigation: diff-first UI + approval checkpoints
 
