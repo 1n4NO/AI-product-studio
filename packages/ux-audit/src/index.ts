@@ -526,3 +526,5 @@ function issue(
 ): AuditIssue {
   return { id, type, group, severity, message, suggestion };
 }
+
+export * from "./audit-gates";
