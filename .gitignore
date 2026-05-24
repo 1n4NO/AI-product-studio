@@ -5,6 +5,7 @@ coverage
 .artifacts
 .runs
 .idempotency
+.snapshots
 .env
 .env.*
 !.env.example
