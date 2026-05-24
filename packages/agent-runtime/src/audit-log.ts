@@ -127,6 +127,68 @@ export class AuditLogStore {
     return { ok: true };
   }
 
+  async exportEntries(): Promise<{
+    exportedAt: string;
+    count: number;
+    entries: AuditLogEntry[];
+    integrity: { ok: boolean; brokenAtId?: string };
+  }> {
+    const entries = await this.list(100000);
+    const integrity = await this.verifyIntegrity();
+    return {
+      exportedAt: new Date().toISOString(),
+      count: entries.length,
+      entries,
+      integrity
+    };
+  }
+
+  async enforceRetention(retainDays: number): Promise<{ removed: number; remaining: number }> {
+    if (retainDays < 1) {
+      throw new Error("retainDays must be >= 1");
+    }
+
+    const allEntries = await this.list(100000);
+    if (allEntries.length === 0) {
+      return { removed: 0, remaining: 0 };
+    }
+
+    const cutoff = Date.now() - retainDays * 24 * 60 * 60 * 1000;
+    const retained = allEntries.filter((entry) => {
+      const ts = new Date(entry.timestamp).getTime();
+      return Number.isFinite(ts) && ts >= cutoff;
+    });
+
+    // Rebuild hash chain after retention pruning to keep integrity verifiable.
+    let previousHash = "GENESIS";
+    const rebuilt = retained.map((entry) => {
+      const base = {
+        id: entry.id,
+        timestamp: entry.timestamp,
+        correlationId: entry.correlationId,
+        actor: entry.actor,
+        action: entry.action,
+        resourceType: entry.resourceType,
+        resourceId: entry.resourceId,
+        metadata: entry.metadata,
+        previousHash
+      };
+      const hash = sha256(JSON.stringify(base));
+      previousHash = hash;
+      return { ...base, hash } as AuditLogEntry;
+    });
+
+    await this.ensureRoot();
+    const content = rebuilt.map((entry) => JSON.stringify(entry)).join("\n");
+    await writeFile(path.join(this.rootDir, LOG_FILE_NAME), content ? `${content}\n` : "", "utf8");
+    await this.writeIndex({
+      lastHash: rebuilt.length > 0 ? rebuilt[rebuilt.length - 1].hash : "GENESIS",
+      count: rebuilt.length
+    });
+
+    return { removed: allEntries.length - rebuilt.length, remaining: rebuilt.length };
+  }
+
   private async ensureRoot(): Promise<void> {
     await mkdir(this.rootDir, { recursive: true });
   }

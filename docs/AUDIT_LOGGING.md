@@ -35,6 +35,8 @@ Each event contains:
 - `list(limit?)`
 - `listByCorrelationId(correlationId)`
 - `verifyIntegrity()`
+- `exportEntries()`
+- `enforceRetention(retainDays)`
 
 ## Integration Guidance
 1. Emit audit events for all approval, rejection, role-sensitive actions, and export gates.
