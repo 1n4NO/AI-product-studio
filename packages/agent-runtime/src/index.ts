@@ -9,3 +9,4 @@ export * from "./observability";
 export * from "./slo";
 export * from "./cost-controls";
 export * from "./analytics";
+export * from "./alerts";
