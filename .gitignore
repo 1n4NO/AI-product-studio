@@ -4,6 +4,7 @@ dist
 coverage
 .artifacts
 .runs
+.idempotency
 .env
 .env.*
 !.env.example
