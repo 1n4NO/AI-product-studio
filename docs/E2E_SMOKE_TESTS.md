@@ -22,3 +22,9 @@ Playwright smoke coverage is now wired for the Studio app.
 ## Local command
 
 `npm run --workspace @product-studio/studio-web test:smoke`
+
+## Nightly CI
+
+- Workflow: `.github/workflows/nightly-e2e.yml`
+- Runs nightly on schedule and supports manual trigger.
+- Uploads Playwright artifacts on failure for debugging.
