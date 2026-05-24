@@ -20,6 +20,11 @@ Standardize environment configuration and secret handling across development, st
 ## Validation
 Run `npm run env:check` before local development and in CI for deploy jobs.
 
+Validation rules:
+- `NEXT_PUBLIC_APP_ENV` must be `development|staging|production`.
+- For `staging` and `production`, `AUTH_COOKIE_SECRET` and `INTERNAL_API_KEY` are required.
+- Placeholder secret values (e.g. `replace_me`) are rejected for non-development environments.
+
 ## Environment Parity Matrix
 - Development
   - Source: `.env.local`
