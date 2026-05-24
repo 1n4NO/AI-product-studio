@@ -26,3 +26,12 @@ Create stable audit inputs by snapshotting normalized HTML with reproducible IDs
 - Snapshot fetch timeout defaults to 15s.
 - Snapshot files are local artifacts and should not be committed.
 - For production scale, replace local persistence with object storage.
+
+## SSRF Safeguards (PS-502A)
+- Only `http` and `https` protocols are allowed.
+- URLs with embedded credentials are rejected.
+- Optional host allowlist supported via `allowedHosts`.
+- Local/private/internal targets are blocked:
+  - hostnames: `localhost`, `*.local`, `*.internal`
+  - IP ranges: loopback/link-local/private IPv4 and local/private IPv6
+- Redirect mode is `error` to prevent redirect-based bypass.
