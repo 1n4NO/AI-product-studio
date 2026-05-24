@@ -19,6 +19,22 @@ interface StudioRun {
   brief: Brief;
   blueprint: PageBlueprint;
   auditReport: AuditReport;
+  review: RunReview;
+}
+
+type ReviewStatus = "pending_review" | "approved" | "rejected";
+
+interface ReviewEvent {
+  id: string;
+  at: string;
+  action: "approved" | "rejected" | "commented";
+  reviewer: string;
+  note: string;
+}
+
+interface RunReview {
+  status: ReviewStatus;
+  events: ReviewEvent[];
 }
 
 function buildMockBlueprint(brief: Brief): PageBlueprint {
@@ -68,6 +84,10 @@ function makeRunId(): string {
   return `run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+function makeReviewEventId(): string {
+  return `rev_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
 function scoreDelta(from: number, to: number): string {
   const delta = to - from;
   return delta >= 0 ? `+${delta}` : `${delta}`;
@@ -83,6 +103,10 @@ export default function Home() {
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [compareFromRunId, setCompareFromRunId] = useState<string>("");
   const [compareToRunId, setCompareToRunId] = useState<string>("");
+  const [reviewer, setReviewer] = useState<string>("reviewer@studio.local");
+  const [reviewComment, setReviewComment] = useState<string>("");
+  const [rejectionReason, setRejectionReason] = useState<string>("");
+  const [reviewError, setReviewError] = useState<string>("");
 
   const constraintsText = useMemo(() => brief.constraints.join("\n"), [brief.constraints]);
 
@@ -119,7 +143,11 @@ export default function Home() {
       createdAt: new Date().toISOString(),
       brief: { ...brief },
       blueprint: nextBlueprint,
-      auditReport: report
+      auditReport: report,
+      review: {
+        status: "pending_review",
+        events: []
+      }
     };
 
     setRuns((prev) => [nextRun, ...prev]);
@@ -139,6 +167,78 @@ export default function Home() {
     setBlueprint(run.blueprint);
     setAuditReport(run.auditReport);
     setSelectedRunId(run.id);
+  }
+
+  function appendReviewEvent(runId: string, event: ReviewEvent, status: ReviewStatus) {
+    setRuns((prev) =>
+      prev.map((run) => {
+        if (run.id !== runId) return run;
+        return {
+          ...run,
+          review: {
+            status,
+            events: [event, ...run.review.events]
+          }
+        };
+      })
+    );
+  }
+
+  function handleApprove(run: StudioRun) {
+    setReviewError("");
+    const note = reviewComment.trim() || "Approved for next stage";
+    appendReviewEvent(
+      run.id,
+      {
+        id: makeReviewEventId(),
+        at: new Date().toISOString(),
+        action: "approved",
+        reviewer: reviewer.trim() || "unknown-reviewer",
+        note
+      },
+      "approved"
+    );
+    setReviewComment("");
+  }
+
+  function handleReject(run: StudioRun) {
+    setReviewError("");
+    const reason = rejectionReason.trim();
+    if (!reason) {
+      setReviewError("Rejection reason is required.");
+      return;
+    }
+
+    appendReviewEvent(
+      run.id,
+      {
+        id: makeReviewEventId(),
+        at: new Date().toISOString(),
+        action: "rejected",
+        reviewer: reviewer.trim() || "unknown-reviewer",
+        note: reason
+      },
+      "rejected"
+    );
+    setRejectionReason("");
+  }
+
+  function handleComment(run: StudioRun) {
+    setReviewError("");
+    const note = reviewComment.trim();
+    if (!note) return;
+    appendReviewEvent(
+      run.id,
+      {
+        id: makeReviewEventId(),
+        at: new Date().toISOString(),
+        action: "commented",
+        reviewer: reviewer.trim() || "unknown-reviewer",
+        note
+      },
+      run.review.status
+    );
+    setReviewComment("");
   }
 
   return (
@@ -208,7 +308,7 @@ export default function Home() {
         {runs.map((run) => (
           <div key={run.id} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 10, marginBottom: 8 }}>
             <p style={{ margin: 0 }}>
-              <strong>{run.id}</strong> | {new Date(run.createdAt).toLocaleString()} | score {run.auditReport.score}
+              <strong>{run.id}</strong> | {new Date(run.createdAt).toLocaleString()} | score {run.auditReport.score} | review {run.review.status}
             </p>
             <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button onClick={() => setSelectedRunId(run.id)}>View</button>
@@ -225,6 +325,58 @@ export default function Home() {
         <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
           {selectedRun ? JSON.stringify(selectedRun, null, 2) : "Select a run to inspect details."}
         </pre>
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <h2>Review Workflow</h2>
+        {!selectedRun ? <p>Select a run to review.</p> : null}
+        {selectedRun ? (
+          <div>
+            <p>
+              Current review status: <strong>{selectedRun.review.status}</strong>
+            </p>
+            <label>
+              Reviewer
+              <input
+                value={reviewer}
+                onChange={(e) => setReviewer(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4, marginBottom: 10 }}
+              />
+            </label>
+            <label>
+              Comment
+              <textarea
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4, marginBottom: 10, minHeight: 70 }}
+              />
+            </label>
+            <label>
+              Rejection Reason (required when rejecting)
+              <textarea
+                value={rejectionReason}
+                onChange={(e) => setRejectionReason(e.target.value)}
+                style={{ display: "block", width: "100%", marginTop: 4, marginBottom: 10, minHeight: 70 }}
+              />
+            </label>
+            {reviewError ? <p>{reviewError}</p> : null}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+              <button onClick={() => handleApprove(selectedRun)}>Approve</button>
+              <button onClick={() => handleReject(selectedRun)}>Reject</button>
+              <button onClick={() => handleComment(selectedRun)}>Add Comment</button>
+            </div>
+            <h3>Review Log</h3>
+            {selectedRun.review.events.length === 0 ? <p>No review events yet.</p> : null}
+            {selectedRun.review.events.map((event) => (
+              <div key={event.id} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, marginBottom: 8 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>{event.action}</strong> by {event.reviewer} at {new Date(event.at).toLocaleString()}
+                </p>
+                <p style={{ margin: "6px 0 0 0" }}>{event.note}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
