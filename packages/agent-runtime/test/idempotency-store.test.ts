@@ -2,16 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { createIdempotencyStore, executeIdempotent } from "../src/idempotency-store";
 
 async function makeStore(ttlHours = 24) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "idempotency-store-test-"));
-  return createIdempotencyStore({ rootDir: dir, ttlHours });
+  return { store: createIdempotencyStore({ rootDir: dir, ttlHours }), dir };
 }
 
 test("idempotency replays completed response for same key + fingerprint", async () => {
-  const store = await makeStore();
+  const { store } = await makeStore();
   const request = { key: "k1", operation: "create_run", fingerprint: "fp1" };
 
   const first = await executeIdempotent({
@@ -34,7 +34,7 @@ test("idempotency replays completed response for same key + fingerprint", async 
 });
 
 test("idempotency reports conflict for same key with different fingerprint", async () => {
-  const store = await makeStore();
+  const { store } = await makeStore();
   const request1 = { key: "k2", operation: "create_run", fingerprint: "fp1" };
   const request2 = { key: "k2", operation: "create_run", fingerprint: "fp2" };
 
@@ -48,11 +48,15 @@ test("idempotency reports conflict for same key with different fingerprint", asy
 });
 
 test("idempotency expires records and allows fresh execution after ttl", async () => {
-  const store = await makeStore(0.0001);
+  const { store, dir } = await makeStore(24);
   const request = { key: "k3", operation: "create_run", fingerprint: "fp1" };
 
   await executeIdempotent({ store, request, execute: async () => "first" });
-  await new Promise((resolve) => setTimeout(resolve, 500));
+  const recordPath = path.join(dir, "k3.json");
+  const raw = await readFile(recordPath, "utf8");
+  const parsed = JSON.parse(raw) as Record<string, unknown>;
+  parsed.expiresAt = new Date(Date.now() - 1000).toISOString();
+  await writeFile(recordPath, JSON.stringify(parsed, null, 2), "utf8");
 
   const result = await executeIdempotent({
     store,
@@ -66,4 +70,3 @@ test("idempotency expires records and allows fresh execution after ttl", async (
     assert.equal(result.value, "second");
   }
 });
-
