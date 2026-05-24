@@ -1,0 +1,11 @@
+{
+  "productName": "Product Studio",
+  "audience": "Startup founders",
+  "valueProposition": "Turn ideas into polished landing pages fast.",
+  "tone": "bold",
+  "constraints": [
+    "Concise copy",
+    "Accessible structure"
+  ],
+  "ctaGoal": "Start free trial"
+}
