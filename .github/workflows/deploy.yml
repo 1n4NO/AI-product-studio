@@ -38,3 +38,21 @@ jobs:
           echo "Deploying commit ${GITHUB_SHA} to ${{ inputs.environment }}"
           echo "Replace this step with your platform deploy command (Vercel/AWS/etc)."
 
+      - name: Post-deploy health check
+        env:
+          HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
+        run: |
+          if [ -z "${HEALTHCHECK_URL}" ]; then
+            echo "HEALTHCHECK_URL is not configured; skipping health check."
+            exit 0
+          fi
+          echo "Checking ${HEALTHCHECK_URL}"
+          curl --fail --show-error --silent "${HEALTHCHECK_URL}" > /tmp/healthcheck.out
+          echo "Health check passed."
+
+      - name: Rollback placeholder on failure
+        if: ${{ failure() }}
+        run: |
+          echo "Deployment verification failed for ${{ inputs.environment }}."
+          echo "Trigger rollback to previous stable revision here."
+          echo "Replace this with platform-specific rollback command."

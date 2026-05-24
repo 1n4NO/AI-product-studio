@@ -10,6 +10,8 @@ This baseline adds explicit staging/production deployment workflow separation.
   - target selection: `staging` or `production`
   - environment-scoped job using GitHub Environments
   - pre-deploy gate: `typecheck` + `build`
+  - post-deploy health-check step using `HEALTHCHECK_URL` environment variable
+  - rollback placeholder step triggered on workflow failure
 
 ## Promotion model
 
@@ -28,4 +30,4 @@ This baseline adds explicit staging/production deployment workflow separation.
 ## Next step to complete productionization
 
 - Replace the `Deploy placeholder` step with actual platform deploy command.
-- Add post-deploy health check + automatic rollback hook.
+- Replace rollback placeholder with actual provider rollback command.
