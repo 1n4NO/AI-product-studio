@@ -11,6 +11,7 @@ This baseline adds explicit staging/production deployment workflow separation.
   - environment-scoped job using GitHub Environments
   - pre-deploy gate: `typecheck` + `build`
   - post-deploy health-check step using `HEALTHCHECK_URL` environment variable
+    - fallback to `${APP_BASE_URL}/api/health` when `HEALTHCHECK_URL` is unset
   - rollback placeholder step triggered on workflow failure
 
 ## Promotion model

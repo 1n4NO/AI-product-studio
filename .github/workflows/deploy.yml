@@ -40,10 +40,14 @@ jobs:
 
       - name: Post-deploy health check
         env:
+          APP_BASE_URL: ${{ vars.APP_BASE_URL }}
           HEALTHCHECK_URL: ${{ vars.HEALTHCHECK_URL }}
         run: |
+          if [ -z "${HEALTHCHECK_URL}" ] && [ -n "${APP_BASE_URL}" ]; then
+            HEALTHCHECK_URL="${APP_BASE_URL%/}/api/health"
+          fi
           if [ -z "${HEALTHCHECK_URL}" ]; then
-            echo "HEALTHCHECK_URL is not configured; skipping health check."
+            echo "HEALTHCHECK_URL/APP_BASE_URL not configured; skipping health check."
             exit 0
           fi
           echo "Checking ${HEALTHCHECK_URL}"
