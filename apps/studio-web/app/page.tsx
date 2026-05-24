@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { AuditReport, Brief, PageBlueprint } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
 import { evaluateSloWindow } from "@product-studio/agent-runtime/src/slo";
+import { createSloAlert, routeAlert } from "@product-studio/agent-runtime/src/alerts";
 
 const initialBrief: Brief = {
   productName: "Product Studio",
@@ -139,6 +140,16 @@ export default function Home() {
       p95LatencyMs
     });
   }, [runs]);
+
+  const sloAlerts = useMemo(
+    () =>
+      sloEvaluation.breaches.map((breach) => {
+        const alert = createSloAlert(breach, { environment: "development", service: "studio-web" });
+        const route = routeAlert(alert);
+        return { alert, route };
+      }),
+    [sloEvaluation.breaches]
+  );
 
   async function handleGenerate() {
     setLoading(true);
@@ -457,6 +468,17 @@ export default function Home() {
               <strong>{breach.severity}</strong> {breach.indicator}
             </p>
             <p style={{ margin: "6px 0 0 0" }}>{breach.message}</p>
+          </div>
+        ))}
+        <h3>Alert Preview</h3>
+        {sloAlerts.length === 0 ? <p>No alerts to route.</p> : null}
+        {sloAlerts.map(({ alert, route }) => (
+          <div key={alert.id} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, marginBottom: 8 }}>
+            <p style={{ margin: 0 }}>
+              <strong>{alert.severity}</strong> {alert.title}
+            </p>
+            <p style={{ margin: "6px 0 0 0" }}>{alert.summary}</p>
+            <p style={{ margin: "6px 0 0 0" }}>Channels: {route.channels.join(", ")}</p>
           </div>
         ))}
       </section>

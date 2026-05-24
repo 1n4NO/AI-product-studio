@@ -11,6 +11,7 @@ This ticket wires SLO evaluation into the Studio UI so teams can inspect reliabi
   - Availability
   - Overall status (`healthy`/`breached`)
   - Active breach list with severity and message
+  - Alert preview with routed channels (pager/slack/email policy)
 - Uses shared runtime evaluator `evaluateSloWindow(...)` from `@product-studio/agent-runtime`.
 
 ## Notes
