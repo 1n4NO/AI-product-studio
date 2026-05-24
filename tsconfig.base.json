@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "strict": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@product-studio/shared-types": ["packages/shared-types/src"],
+      "@product-studio/agent-runtime": ["packages/agent-runtime/src"],
+      "@product-studio/theme-engine": ["packages/theme-engine/src"],
+      "@product-studio/ux-audit": ["packages/ux-audit/src"]
+    }
+  }
+}

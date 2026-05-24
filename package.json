@@ -1,0 +1,20 @@
+{
+  "name": "product-studio",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Monorepo for Product Studio",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev": "npm run --workspace @product-studio/studio-web dev",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test",
+    "typecheck": "npm run -ws typecheck"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
