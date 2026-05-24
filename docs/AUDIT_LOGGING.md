@@ -43,3 +43,12 @@ Each event contains:
 2. Include `correlationId` from workflow runs.
 3. Run periodic integrity checks and alert on failures.
 4. Replicate/ship logs to immutable external storage for production.
+
+## Protected API Endpoints
+- `GET /api/protected/audit/export`
+  - Full export including integrity summary.
+- `GET /api/protected/audit/export?correlationId=<id>`
+  - Filtered export for a specific correlation ID.
+- `POST /api/protected/audit/retention`
+  - Body: `{ "retainDays": number }`
+  - Applies retention cleanup and returns removed/remaining counts.
