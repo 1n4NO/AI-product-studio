@@ -13,6 +13,14 @@ const initialBrief: Brief = {
   ctaGoal: "Start free trial"
 };
 
+interface StudioRun {
+  id: string;
+  createdAt: string;
+  brief: Brief;
+  blueprint: PageBlueprint;
+  auditReport: AuditReport;
+}
+
 function buildMockBlueprint(brief: Brief): PageBlueprint {
   return {
     title: `${brief.productName} Landing Page Blueprint`,
@@ -56,13 +64,42 @@ function renderMockHtml(brief: Brief, blueprint: PageBlueprint): string {
   `;
 }
 
+function makeRunId(): string {
+  return `run_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function scoreDelta(from: number, to: number): string {
+  const delta = to - from;
+  return delta >= 0 ? `+${delta}` : `${delta}`;
+}
+
 export default function Home() {
   const [brief, setBrief] = useState<Brief>(initialBrief);
   const [blueprint, setBlueprint] = useState<PageBlueprint | null>(null);
   const [auditReport, setAuditReport] = useState<AuditReport | null>(null);
   const [loading, setLoading] = useState(false);
 
+  const [runs, setRuns] = useState<StudioRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState<string>("");
+  const [compareFromRunId, setCompareFromRunId] = useState<string>("");
+  const [compareToRunId, setCompareToRunId] = useState<string>("");
+
   const constraintsText = useMemo(() => brief.constraints.join("\n"), [brief.constraints]);
+
+  const selectedRun = useMemo(
+    () => runs.find((run) => run.id === selectedRunId) ?? null,
+    [runs, selectedRunId]
+  );
+
+  const compareFromRun = useMemo(
+    () => runs.find((run) => run.id === compareFromRunId) ?? null,
+    [runs, compareFromRunId]
+  );
+
+  const compareToRun = useMemo(
+    () => runs.find((run) => run.id === compareToRunId) ?? null,
+    [runs, compareToRunId]
+  );
 
   async function handleGenerate() {
     setLoading(true);
@@ -76,13 +113,38 @@ export default function Home() {
       urlOrSnapshotId: `${brief.productName.toLowerCase().replace(/\s+/g, "-")}-draft`
     });
     setAuditReport(report);
+
+    const nextRun: StudioRun = {
+      id: makeRunId(),
+      createdAt: new Date().toISOString(),
+      brief: { ...brief },
+      blueprint: nextBlueprint,
+      auditReport: report
+    };
+
+    setRuns((prev) => [nextRun, ...prev]);
+    setSelectedRunId(nextRun.id);
+    if (!compareToRunId) {
+      setCompareToRunId(nextRun.id);
+    }
+    if (!compareFromRunId && runs.length > 0) {
+      setCompareFromRunId(runs[0].id);
+    }
+
     setLoading(false);
+  }
+
+  function handleRollback(run: StudioRun) {
+    setBrief(run.brief);
+    setBlueprint(run.blueprint);
+    setAuditReport(run.auditReport);
+    setSelectedRunId(run.id);
   }
 
   return (
     <main style={{ maxWidth: 980, margin: "0 auto", padding: 24, fontFamily: "sans-serif" }}>
       <h1>Product Studio</h1>
-      <p>Brief -&gt; Mock Blueprint -&gt; Audit Report</p>
+      <p>Brief -&gt; Blueprint -&gt; Audit -&gt; Run History</p>
 
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
         <h2>Brief Form</h2>
@@ -136,8 +198,83 @@ export default function Home() {
         </label>
 
         <button onClick={handleGenerate} disabled={loading}>
-          {loading ? "Generating..." : "Generate Blueprint + Run Audit"}
+          {loading ? "Generating..." : "Generate Run"}
         </button>
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <h2>Run History</h2>
+        {runs.length === 0 ? <p>No runs yet.</p> : null}
+        {runs.map((run) => (
+          <div key={run.id} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 10, marginBottom: 8 }}>
+            <p style={{ margin: 0 }}>
+              <strong>{run.id}</strong> | {new Date(run.createdAt).toLocaleString()} | score {run.auditReport.score}
+            </p>
+            <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button onClick={() => setSelectedRunId(run.id)}>View</button>
+              <button onClick={() => handleRollback(run)}>Rollback</button>
+              <button onClick={() => setCompareFromRunId(run.id)}>Set As Baseline</button>
+              <button onClick={() => setCompareToRunId(run.id)}>Set As Current</button>
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <h2>Run Detail</h2>
+        <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          {selectedRun ? JSON.stringify(selectedRun, null, 2) : "Select a run to inspect details."}
+        </pre>
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <h2>Run Comparison</h2>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+          <label>
+            Baseline
+            <select value={compareFromRunId} onChange={(e) => setCompareFromRunId(e.target.value)} style={{ marginLeft: 8 }}>
+              <option value="">Select</option>
+              {runs.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.id}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Current
+            <select value={compareToRunId} onChange={(e) => setCompareToRunId(e.target.value)} style={{ marginLeft: 8 }}>
+              <option value="">Select</option>
+              {runs.map((run) => (
+                <option key={run.id} value={run.id}>
+                  {run.id}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        {compareFromRun && compareToRun ? (
+          <div>
+            <p>
+              Overall score: {compareFromRun.auditReport.score} -&gt; {compareToRun.auditReport.score} ({scoreDelta(compareFromRun.auditReport.score, compareToRun.auditReport.score)})
+            </p>
+            <p>
+              Accessibility: {compareFromRun.auditReport.categoryScores.accessibility} -&gt; {compareToRun.auditReport.categoryScores.accessibility} ({scoreDelta(compareFromRun.auditReport.categoryScores.accessibility, compareToRun.auditReport.categoryScores.accessibility)})
+            </p>
+            <p>
+              Readability: {compareFromRun.auditReport.categoryScores.readability} -&gt; {compareToRun.auditReport.categoryScores.readability} ({scoreDelta(compareFromRun.auditReport.categoryScores.readability, compareToRun.auditReport.categoryScores.readability)})
+            </p>
+            <p>
+              Performance: {compareFromRun.auditReport.categoryScores.performance} -&gt; {compareToRun.auditReport.categoryScores.performance} ({scoreDelta(compareFromRun.auditReport.categoryScores.performance, compareToRun.auditReport.categoryScores.performance)})
+            </p>
+            <p>
+              Findings count: {compareFromRun.auditReport.findings.length} -&gt; {compareToRun.auditReport.findings.length} ({scoreDelta(compareFromRun.auditReport.findings.length, compareToRun.auditReport.findings.length)})
+            </p>
+          </div>
+        ) : (
+          <p>Select baseline and current runs to compare.</p>
+        )}
       </section>
 
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
