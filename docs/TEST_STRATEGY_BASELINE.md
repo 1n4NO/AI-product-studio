@@ -18,8 +18,8 @@ Implemented initial automated tests for critical runtime behavior in `@product-s
 - Output safety detection and HTML sanitization behavior.
 - Schema validation retry success/failure contract.
 - Workflow state machine transition contract (valid paths, approval gate, invalid transition rejection).
+- Idempotency key contract (replay, conflict, TTL expiration behavior).
 
 ## Next expansion
 
-- Add idempotency store collision/TTL tests.
 - Add CI coverage threshold enforcement for critical packages.

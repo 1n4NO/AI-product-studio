@@ -1,8 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 export interface IdempotencyStoreOptions {
   rootDir?: string;
+  ttlHours?: number;
 }
 
 export interface IdempotencyRequest {
@@ -43,6 +44,7 @@ interface StoredRecord<T = unknown> {
   state: "in_progress" | "completed";
   createdAt: string;
   updatedAt: string;
+  expiresAt: string;
   response?: T;
 }
 
@@ -58,14 +60,20 @@ function makeSafeFileName(value: string): string {
 
 export class FileIdempotencyStore {
   private readonly rootDir: string;
+  private readonly ttlHours: number;
 
   constructor(options: IdempotencyStoreOptions = {}) {
     this.rootDir = options.rootDir ?? DEFAULT_ROOT_DIR;
+    this.ttlHours = options.ttlHours ?? 24;
   }
 
   async lookup<T>(request: IdempotencyRequest): Promise<IdempotencyLookup<T>> {
     const existing = await this.readRecord<T>(request.key);
     if (!existing) {
+      return null;
+    }
+    if (isExpired(existing.expiresAt)) {
+      await this.deleteRecord(request.key);
       return null;
     }
 
@@ -109,7 +117,8 @@ export class FileIdempotencyStore {
       fingerprint: request.fingerprint,
       state: "in_progress",
       createdAt: nowIso(),
-      updatedAt: nowIso()
+      updatedAt: nowIso(),
+      expiresAt: toExpiryIso(this.ttlHours)
     };
 
     await this.writeRecord(request.key, record);
@@ -129,10 +138,32 @@ export class FileIdempotencyStore {
       ...existing,
       state: "completed",
       response,
-      updatedAt: nowIso()
+      updatedAt: nowIso(),
+      expiresAt: toExpiryIso(this.ttlHours)
     };
 
     await this.writeRecord(request.key, updated);
+  }
+
+  async pruneExpired(): Promise<number> {
+    await mkdir(this.rootDir, { recursive: true });
+    const files = await readdir(this.rootDir).catch(() => []);
+    let removed = 0;
+    for (const file of files) {
+      if (!file.endsWith(".json")) continue;
+      const fullPath = path.join(this.rootDir, file);
+      try {
+        const raw = await readFile(fullPath, "utf8");
+        const record = JSON.parse(raw) as StoredRecord;
+        if (isExpired(record.expiresAt)) {
+          await unlink(fullPath);
+          removed += 1;
+        }
+      } catch {
+        // ignore corrupt or missing files during cleanup
+      }
+    }
+    return removed;
   }
 
   private recordPath(key: string): string {
@@ -151,6 +182,10 @@ export class FileIdempotencyStore {
   private async writeRecord<T>(key: string, record: StoredRecord<T>): Promise<void> {
     await mkdir(this.rootDir, { recursive: true });
     await writeFile(this.recordPath(key), JSON.stringify(record, null, 2), "utf8");
+  }
+
+  private async deleteRecord(key: string): Promise<void> {
+    await unlink(this.recordPath(key)).catch(() => undefined);
   }
 }
 
@@ -184,4 +219,13 @@ export async function executeIdempotent<T>(options: ExecuteIdempotentOptions<T>)
 
 export function createIdempotencyStore(options: IdempotencyStoreOptions = {}): FileIdempotencyStore {
   return new FileIdempotencyStore(options);
+}
+
+function toExpiryIso(ttlHours: number): string {
+  const ttlMs = Math.max(1, ttlHours * 60 * 60 * 1000);
+  return new Date(Date.now() + ttlMs).toISOString();
+}
+
+function isExpired(expiresAt: string): boolean {
+  return new Date(expiresAt).getTime() <= Date.now();
 }
