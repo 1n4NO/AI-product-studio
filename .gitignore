@@ -11,3 +11,5 @@ coverage
 .env.*
 !.env.example
 .DS_Store
+playwright-report
+test-results

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "echo 'lint not configured yet'",
-    "test": "echo 'test not configured yet'",
+    "test": "playwright test",
+    "test:smoke": "playwright test e2e/studio-smoke.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -18,9 +19,10 @@
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "typescript": "^5.8.0",
+    "@playwright/test": "^1.60.0",
     "@types/node": "^22.15.0",
     "@types/react": "^19.0.0",
-    "@types/react-dom": "^19.0.0"
+    "@types/react-dom": "^19.0.0",
+    "typescript": "^5.8.0"
   }
 }
