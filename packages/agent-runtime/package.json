@@ -11,6 +11,9 @@
     "test": "echo 'test not configured yet'",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
+  "dependencies": {
+    "@product-studio/shared-types": "0.1.0"
+  },
   "devDependencies": {
     "@types/node": "^22.15.0",
     "typescript": "^5.8.0"
