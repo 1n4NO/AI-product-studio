@@ -1,3 +1,5 @@
+import { type StructuredLogger, type TraceContext, withSpan } from "./observability";
+
 export type SchemaValidator<T> = (value: unknown) => value is T;
 
 export interface ValidationFailure {
@@ -15,6 +17,10 @@ export interface ExecuteWithSchemaOptions<T> {
   run: (attempt: number) => Promise<unknown>;
   validate: SchemaValidator<T>;
   retryPolicy?: SchemaRetryPolicy;
+  runId?: string;
+  correlationId?: string;
+  trace?: TraceContext;
+  logger?: StructuredLogger;
 }
 
 export interface ExecuteWithSchemaSuccess<T> {
@@ -45,41 +51,89 @@ export async function executeWithSchema<T>(options: ExecuteWithSchemaOptions<T>)
     throw new Error("retryPolicy.maxAttempts must be >= 1");
   }
 
-  const failures: ValidationFailure[] = [];
+  return withSpan(
+    `schema_task:${options.taskName}`,
+    async () => {
+      const failures: ValidationFailure[] = [];
 
-  for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt += 1) {
-    try {
-      const payload = await options.run(attempt);
-      if (options.validate(payload)) {
-        return {
-          ok: true,
-          taskName: options.taskName,
-          attempts: attempt,
-          value: payload
-        };
+      for (let attempt = 1; attempt <= retryPolicy.maxAttempts; attempt += 1) {
+        options.logger?.log({
+          timestamp: new Date().toISOString(),
+          level: "info",
+          message: "schema_attempt_started",
+          traceId: options.trace?.traceId ?? "no-trace",
+          spanId: options.trace?.spanId,
+          runId: options.runId,
+          correlationId: options.correlationId,
+          component: "schema-pipeline",
+          metadata: { taskName: options.taskName, attempt }
+        });
+
+        try {
+          const payload = await options.run(attempt);
+          if (options.validate(payload)) {
+            options.logger?.log({
+              timestamp: new Date().toISOString(),
+              level: "info",
+              message: "schema_validation_passed",
+              traceId: options.trace?.traceId ?? "no-trace",
+              spanId: options.trace?.spanId,
+              runId: options.runId,
+              correlationId: options.correlationId,
+              component: "schema-pipeline",
+              metadata: { taskName: options.taskName, attempt }
+            });
+
+            return {
+              ok: true,
+              taskName: options.taskName,
+              attempts: attempt,
+              value: payload
+            };
+          }
+
+          failures.push({
+            attempt,
+            reason: "schema_validation_failed",
+            payloadPreview: toPreview(payload)
+          });
+        } catch (error) {
+          failures.push({
+            attempt,
+            reason: error instanceof Error ? error.message : "unknown_error",
+            payloadPreview: "<execution_failed>"
+          });
+        }
       }
 
-      failures.push({
-        attempt,
-        reason: "schema_validation_failed",
-        payloadPreview: toPreview(payload)
+      options.logger?.log({
+        timestamp: new Date().toISOString(),
+        level: "error",
+        message: "schema_task_failed",
+        traceId: options.trace?.traceId ?? "no-trace",
+        spanId: options.trace?.spanId,
+        runId: options.runId,
+        correlationId: options.correlationId,
+        component: "schema-pipeline",
+        metadata: { taskName: options.taskName, maxAttempts: retryPolicy.maxAttempts }
       });
-    } catch (error) {
-      failures.push({
-        attempt,
-        reason: error instanceof Error ? error.message : "unknown_error",
-        payloadPreview: "<execution_failed>"
-      });
-    }
-  }
 
-  return {
-    ok: false,
-    taskName: options.taskName,
-    attempts: retryPolicy.maxAttempts,
-    failures,
-    message: `Task '${options.taskName}' failed schema validation after ${retryPolicy.maxAttempts} attempts`
-  };
+      return {
+        ok: false,
+        taskName: options.taskName,
+        attempts: retryPolicy.maxAttempts,
+        failures,
+        message: `Task '${options.taskName}' failed schema validation after ${retryPolicy.maxAttempts} attempts`
+      };
+    },
+    {
+      parent: options.trace,
+      runId: options.runId,
+      correlationId: options.correlationId,
+      component: "schema-pipeline",
+      logger: options.logger
+    }
+  );
 }
 
 function toPreview(value: unknown): string {

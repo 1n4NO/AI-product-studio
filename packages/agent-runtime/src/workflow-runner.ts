@@ -1,5 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { type StructuredLogger, startSpan } from "./observability";
 
 export type RunState =
   | "brief_received"
@@ -38,6 +39,7 @@ export interface WorkflowRun {
 
 export interface WorkflowStoreOptions {
   rootDir?: string;
+  logger?: StructuredLogger;
 }
 
 const DEFAULT_RUNS_DIR = path.resolve(process.cwd(), ".runs");
@@ -67,14 +69,17 @@ function runPath(rootDir: string, runId: string): string {
 
 export class WorkflowRunStore {
   private readonly rootDir: string;
+  private readonly logger?: StructuredLogger;
 
   constructor(options: WorkflowStoreOptions = {}) {
     this.rootDir = options.rootDir ?? DEFAULT_RUNS_DIR;
+    this.logger = options.logger;
   }
 
   async createRun(projectId: string, requiresApproval: boolean): Promise<WorkflowRun> {
     const runId = makeId("run");
     const correlationId = makeId("corr");
+    const trace = startSpan("workflow:create_run");
     const run: WorkflowRun = {
       runId,
       projectId,
@@ -88,6 +93,7 @@ export class WorkflowRunStore {
     };
 
     await this.persist(run);
+    this.log("info", "workflow_run_created", run, { projectId, requiresApproval, traceId: trace.traceId, spanId: trace.spanId });
     return run;
   }
 
@@ -102,6 +108,7 @@ export class WorkflowRunStore {
 
   async transition(runId: string, nextState: RunState, metadata?: Record<string, string>): Promise<WorkflowRun> {
     const run = await this.requireRun(runId);
+    const trace = startSpan("workflow:transition");
 
     if (!TRANSITIONS[run.state].includes(nextState)) {
       throw new Error(`Invalid transition: ${run.state} -> ${nextState}`);
@@ -127,11 +134,18 @@ export class WorkflowRunStore {
     run.events.push(event);
 
     await this.persist(run);
+    this.log("info", "workflow_transition_completed", run, {
+      fromState: event.fromState,
+      toState: event.toState,
+      traceId: trace.traceId,
+      spanId: trace.spanId
+    });
     return run;
   }
 
   async requestApproval(runId: string): Promise<WorkflowRun> {
     const run = await this.requireRun(runId);
+    const trace = startSpan("workflow:request_approval");
 
     if (!run.requiresApproval) {
       return run;
@@ -156,11 +170,13 @@ export class WorkflowRunStore {
     run.events.push(event);
 
     await this.persist(run);
+    this.log("info", "workflow_approval_requested", run, { traceId: trace.traceId, spanId: trace.spanId });
     return run;
   }
 
   async grantApproval(runId: string, approverId: string): Promise<WorkflowRun> {
     const run = await this.requireRun(runId);
+    const trace = startSpan("workflow:grant_approval");
 
     if (run.state !== "awaiting_approval") {
       throw new Error("Run is not awaiting approval");
@@ -184,11 +200,13 @@ export class WorkflowRunStore {
     run.updatedAt = nowIso();
 
     await this.persist(run);
+    this.log("info", "workflow_approval_granted", run, { approverId, traceId: trace.traceId, spanId: trace.spanId });
     return run;
   }
 
   async markStepFailed(runId: string, step: RunStep, reason: string): Promise<WorkflowRun> {
     const run = await this.requireRun(runId);
+    const trace = startSpan("workflow:mark_step_failed");
 
     const event: RunEvent = {
       id: makeId("evt"),
@@ -206,6 +224,7 @@ export class WorkflowRunStore {
     run.events.push(event);
 
     await this.persist(run);
+    this.log("error", "workflow_step_failed", run, { step, reason, traceId: trace.traceId, spanId: trace.spanId });
     return run;
   }
 
@@ -245,6 +264,20 @@ export class WorkflowRunStore {
     const ids = new Set(JSON.parse(raw) as string[]);
     ids.add(runId);
     await writeFile(indexPath, JSON.stringify(Array.from(ids), null, 2), "utf8");
+  }
+
+  private log(level: "info" | "warn" | "error", message: string, run: WorkflowRun, metadata?: Record<string, unknown>): void {
+    this.logger?.log({
+      timestamp: new Date().toISOString(),
+      level,
+      message,
+      traceId: typeof metadata?.traceId === "string" ? metadata.traceId : "no-trace",
+      spanId: typeof metadata?.spanId === "string" ? metadata.spanId : undefined,
+      runId: run.runId,
+      correlationId: run.correlationId,
+      component: "workflow-runner",
+      metadata
+    });
   }
 }
 
