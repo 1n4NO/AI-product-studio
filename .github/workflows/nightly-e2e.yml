@@ -9,6 +9,12 @@ jobs:
   smoke-e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      NEXT_PUBLIC_APP_ENV: development
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      NEXT_PUBLIC_API_BASE_URL: http://127.0.0.1:3000/api
+      AUTH_COOKIE_SECRET: ci-auth-cookie-secret
+      INTERNAL_API_KEY: ci-internal-api-key
 
     steps:
       - name: Checkout
