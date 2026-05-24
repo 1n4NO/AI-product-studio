@@ -6,6 +6,7 @@
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
+    "./gates": "./src/audit-gates.ts",
     "./server": "./src/server.ts"
   },
   "types": "src/index.ts",

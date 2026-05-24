@@ -13,7 +13,8 @@
       "@product-studio/shared-types": ["packages/shared-types/src"],
       "@product-studio/agent-runtime": ["packages/agent-runtime/src"],
       "@product-studio/theme-engine": ["packages/theme-engine/src"],
-      "@product-studio/ux-audit": ["packages/ux-audit/src"]
+      "@product-studio/ux-audit": ["packages/ux-audit/src"],
+      "@product-studio/ux-audit/gates": ["packages/ux-audit/src/audit-gates.ts"]
     }
   }
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import type { AuditReport, Brief, PageBlueprint } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
+import { evaluateAuditGate } from "@product-studio/ux-audit/gates";
 import { evaluateSloWindow } from "@product-studio/agent-runtime/src/slo";
 import { createSloAlert, routeAlert } from "@product-studio/agent-runtime/src/alerts";
 
@@ -127,6 +128,13 @@ export default function Home() {
     [runs, compareToRunId]
   );
 
+  const selectedBaselineRun = useMemo(() => {
+    if (!selectedRun || !compareFromRun || compareFromRun.id === selectedRun.id) {
+      return null;
+    }
+    return compareFromRun;
+  }, [compareFromRun, selectedRun]);
+
   const sloEvaluation = useMemo(() => {
     const totalRequests = runs.length;
     const successfulRequests = runs.filter((run) => run.review.status !== "rejected").length;
@@ -150,6 +158,13 @@ export default function Home() {
       }),
     [sloEvaluation.breaches]
   );
+
+  const exportGateResult = useMemo(() => {
+    if (!selectedRun) {
+      return null;
+    }
+    return evaluateAuditGate(selectedRun.auditReport, selectedBaselineRun?.auditReport ?? null);
+  }, [selectedBaselineRun, selectedRun]);
 
   async function handleGenerate() {
     setLoading(true);
@@ -453,6 +468,29 @@ export default function Home() {
         ) : (
           <p>Select baseline and current runs to compare.</p>
         )}
+      </section>
+
+      <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>
+        <h2>Export Gate</h2>
+        {!selectedRun ? <p>Select a run to evaluate export readiness.</p> : null}
+        {selectedRun && exportGateResult ? (
+          <div>
+            <p>
+              Status: <strong>{exportGateResult.passed ? "pass" : "block"}</strong>
+            </p>
+            <p>{exportGateResult.summary}</p>
+            {selectedBaselineRun ? <p>Baseline: {selectedBaselineRun.id}</p> : <p>Baseline: none</p>}
+            {exportGateResult.violations.length === 0 ? <p>No gate violations.</p> : null}
+            {exportGateResult.violations.map((violation) => (
+              <div key={violation.code} style={{ border: "1px solid #ddd", borderRadius: 6, padding: 8, marginBottom: 8 }}>
+                <p style={{ margin: 0 }}>
+                  <strong>{violation.code}</strong>
+                </p>
+                <p style={{ margin: "6px 0 0 0" }}>{violation.message}</p>
+              </div>
+            ))}
+          </div>
+        ) : null}
       </section>
 
       <section style={{ border: "1px solid #ddd", borderRadius: 8, padding: 16, marginBottom: 16 }}>

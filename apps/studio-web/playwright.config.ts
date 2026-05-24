@@ -9,7 +9,7 @@ export default defineConfig({
     trace: "on-first-retry"
   },
   webServer: {
-    command: "npm run build && npm run start -- --hostname 127.0.0.1 --port 3100",
+    command: "rm -rf .next && npm run build && npm run start -- --hostname 127.0.0.1 --port 3100",
     port: 3100,
     reuseExistingServer: false,
     timeout: 180000
