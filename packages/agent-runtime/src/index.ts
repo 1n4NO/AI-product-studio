@@ -1,1 +1,1 @@
-export const packageName = "@product-studio/agent-runtime";
+export * from "./artifact-store";
