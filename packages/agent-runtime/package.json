@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "lint": "echo 'lint not configured yet'",
-    "test": "echo 'test not configured yet'",
+    "test": "tsx --test test/**/*.test.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
@@ -16,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.15.0",
+    "tsx": "^4.22.3",
     "typescript": "^5.8.0"
   }
 }
