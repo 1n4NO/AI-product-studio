@@ -13,6 +13,10 @@ Baseline quota and throttling primitives are now implemented in runtime.
     - `retryAfterSeconds` output
 - tests:
   - `packages/agent-runtime/test/cost-controls.test.ts`
+- `packages/agent-runtime/src/budget-alerts.ts`
+  - threshold evaluator for 70/85/100% budget usage alerts
+- tests:
+  - `packages/agent-runtime/test/budget-alerts.test.ts`
 
 ## Intended integration
 
@@ -23,5 +27,4 @@ Baseline quota and throttling primitives are now implemented in runtime.
 ## Next hardening
 
 - Replace in-memory counters with persistent per-workspace usage store.
-- Add monthly budget alerts at 70%/85%/100%.
 - Add admin controls for per-workspace overrides.
