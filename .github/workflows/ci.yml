@@ -37,8 +37,11 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install --with-deps chromium
 
-      - name: Test
-        run: npm run test
+      - name: Test Runtime Contracts
+        run: npm run --workspace @product-studio/agent-runtime test
+
+      - name: Test Studio Smoke E2E
+        run: npm run --workspace @product-studio/studio-web test:smoke
 
       - name: Build
         run: npm run build
