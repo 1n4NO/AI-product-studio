@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createSloAlert, routeAlert } from "../src/alerts";
+import { createSloAlert, dispatchAlert, dryRunTransport, routeAlert } from "../src/alerts";
 
 test("createSloAlert formats structured alert payload", () => {
   const alert = createSloAlert(
@@ -43,3 +43,20 @@ test("routeAlert sends critical to pager and warning to slack", () => {
   assert.deepEqual(warning.channels, ["slack"]);
 });
 
+test("dispatchAlert sends to each routed channel", async () => {
+  const alert = createSloAlert(
+    {
+      indicator: "latency",
+      observed: 4200,
+      target: 3000,
+      severity: "warning",
+      message: "Latency high"
+    },
+    { environment: "staging", service: "studio-web" }
+  );
+  const route = routeAlert(alert);
+  const results = await dispatchAlert(alert, route, dryRunTransport);
+
+  assert.equal(results.length, route.channels.length);
+  assert.equal(results.every((r) => r.delivered), true);
+});
