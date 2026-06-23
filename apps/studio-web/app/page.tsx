@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
 
@@ -12,13 +12,14 @@ import { BlueprintView } from "@/components/organisms/BlueprintView";
 import { AuditPanel } from "@/components/organisms/AuditPanel";
 import { ExportView } from "@/components/organisms/ExportView";
 import { ThemePanel } from "@/components/organisms/ThemePanel";
+import { CopyPanel } from "@/components/organisms/CopyPanel";
 import { ReviewDrawer } from "@/components/organisms/ReviewDrawer";
 import type { Stage } from "@/components/organisms/StageBar";
 import type { SidebarSection } from "@/components/organisms/Sidebar";
 import type { RunSummary } from "@/components/molecules/RunItem";
 import type { StudioRun, AuditFinding } from "@/lib/types";
 
-/* ─── Initial state ─────────────────────────── */
+/* ─── Constants ──────────────────────────────── */
 
 const INITIAL_BRIEF: Brief = {
   productName: "Product Studio",
@@ -29,19 +30,25 @@ const INITIAL_BRIEF: Brief = {
   ctaGoal: "Start free trial",
 };
 
-/* ─── Fallback mock blueprint ────────────────── */
+const BLUEPRINT_TABS = [
+  { id: "blueprint", label: "Blueprint" },
+  { id: "theme",     label: "Theme"     },
+  { id: "copy",      label: "Copy"      },
+];
+
+/* ─── Helpers ────────────────────────────────── */
 
 function buildMockBlueprint(brief: Brief): PageBlueprint {
   return {
     title: `${brief.productName} — Page Blueprint`,
     summary: `Message architecture focused on ${brief.audience}.`,
     sections: [
-      { id: "hero",         type: "hero",         intent: `Lead with: "${brief.valueProposition}"`,       requiredComponents: ["headline", "subheadline", "primary-cta", "hero-visual"] },
-      { id: "problem",      type: "problem",      intent: "Validate the audience's pain first",            requiredComponents: ["pain-points-grid", "empathy-statement", "transition-hook"] },
-      { id: "solution",     type: "solution",     intent: `Position ${brief.productName} as the answer`,  requiredComponents: ["solution-headline", "benefit-pillars", "product-screenshot"] },
-      { id: "features",     type: "features",     intent: "Build credibility with concrete capabilities",  requiredComponents: ["feature-grid", "feature-icons", "proof-metrics"] },
-      { id: "social-proof", type: "social-proof", intent: "Reduce risk with real customer outcomes",      requiredComponents: ["testimonial-carousel", "company-logo-strip", "outcome-stats"] },
-      { id: "cta",          type: "cta",          intent: `Drive: "${brief.ctaGoal}"`,                    requiredComponents: ["cta-headline", "primary-cta-button", "risk-reversal-copy"] },
+      { id: "hero",         type: "hero",         intent: `Lead with: "${brief.valueProposition}"`,      requiredComponents: ["headline", "subheadline", "primary-cta", "hero-visual"] },
+      { id: "problem",      type: "problem",      intent: "Validate the audience's pain first",           requiredComponents: ["pain-points-grid", "empathy-statement", "transition-hook"] },
+      { id: "solution",     type: "solution",     intent: `Position ${brief.productName} as the answer`, requiredComponents: ["solution-headline", "benefit-pillars", "product-screenshot"] },
+      { id: "features",     type: "features",     intent: "Build credibility with concrete capabilities", requiredComponents: ["feature-grid", "feature-icons", "proof-metrics"] },
+      { id: "social-proof", type: "social-proof", intent: "Reduce risk with real customer outcomes",     requiredComponents: ["testimonial-carousel", "company-logo-strip", "outcome-stats"] },
+      { id: "cta",          type: "cta",          intent: `Drive: "${brief.ctaGoal}"`,                   requiredComponents: ["cta-headline", "primary-cta-button", "risk-reversal-copy"] },
     ],
   };
 }
@@ -50,8 +57,7 @@ function renderMockHtml(brief: Brief, blueprint: PageBlueprint): string {
   return `<html lang="en">
     <head><title>${brief.productName}</title><meta name="description" content="${brief.valueProposition}" /></head>
     <main>
-      <h1>${brief.productName}</h1>
-      <p>${brief.valueProposition}</p>
+      <h1>${brief.productName}</h1><p>${brief.valueProposition}</p>
       <section><h2>${blueprint.sections[2]?.intent ?? "Features"}</h2>
         <img src="/feature.png" alt="Feature preview" /><img src="/screenshot.png" />
       </section>
@@ -64,42 +70,38 @@ function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
-/* ─── Blueprint + Theme tabs ─────────────────── */
-
-const BLUEPRINT_TABS = [
-  { id: "blueprint", label: "Blueprint" },
-  { id: "theme",     label: "Theme" },
-];
-
 /* ─── Page ───────────────────────────────────── */
 
 export default function StudioPage() {
-  const [brief, setBrief]               = useState<Brief>(INITIAL_BRIEF);
-  const [runs, setRuns]                 = useState<StudioRun[]>([]);
+  const [brief, setBrief]                 = useState<Brief>(INITIAL_BRIEF);
+  const [runs, setRuns]                   = useState<StudioRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string>("");
-  const [currentStage, setCurrentStage] = useState<Stage>("brief");
+  const [currentStage, setCurrentStage]   = useState<Stage>("brief");
   const [activeSection, setActiveSection] = useState<SidebarSection | undefined>();
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [blueprintTab, setBlueprintTab] = useState<string>("blueprint");
+  const [isGenerating, setIsGenerating]   = useState(false);
+  const [isAuditing, setIsAuditing]       = useState(false);
+  const [blueprintTab, setBlueprintTab]   = useState<string>("blueprint");
   const [selectedTheme, setSelectedTheme] = useState<ThemeTokens | null>(null);
-  const [reviewOpen, setReviewOpen]     = useState(false);
+  const [reviewOpen, setReviewOpen]       = useState(false);
 
-  /* Derived */
+  // Blueprint lives here between Generate and Run Audit
+  const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
+
+  /* ── Derived ── */
   const selectedRun = useMemo(
     () => runs.find((r) => r.id === selectedRunId) ?? null,
     [runs, selectedRunId]
   );
 
   const runSummaries: RunSummary[] = useMemo(
-    () =>
-      runs.map((r) => ({
-        id: r.id,
-        runNumber: r.runNumber,
-        productName: r.brief.productName,
-        score: r.auditReport.score,
-        reviewStatus: r.review.status,
-        createdAt: r.createdAt,
-      })),
+    () => runs.map((r) => ({
+      id: r.id,
+      runNumber: r.runNumber,
+      productName: r.brief.productName,
+      score: r.auditReport.score,
+      reviewStatus: r.review.status,
+      createdAt: r.createdAt,
+    })),
     [runs]
   );
 
@@ -108,12 +110,13 @@ export default function StudioPage() {
     return order.slice(0, order.indexOf(currentStage)) as Stage[];
   }, [currentStage]);
 
-  /* Actions */
+  /* ── Step 1: Generate blueprint → land on Blueprint stage ── */
   async function handleGenerate() {
     setIsGenerating(true);
+    pendingRef.current = null;
     setCurrentStage("blueprint");
+    setBlueprintTab("blueprint");
 
-    // Call real blueprint API, fall back to local mock
     let blueprint: PageBlueprint;
     try {
       const res = await fetch("/api/protected/generate/blueprint", {
@@ -121,44 +124,71 @@ export default function StudioPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(brief),
       });
-      if (!res.ok) throw new Error("API error");
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       blueprint = (await res.json()) as PageBlueprint;
     } catch {
-      console.warn("[Studio] Blueprint API failed — using client-side mock");
+      console.warn("[Studio] Blueprint API failed — using mock");
       blueprint = buildMockBlueprint(brief);
     }
 
-    const html = renderMockHtml(brief, blueprint);
+    pendingRef.current = { brief: { ...brief }, blueprint };
+    setIsGenerating(false);
+  }
+
+  /* ── Step 2: Run Audit → create run → land on Audit stage ── */
+  async function handleRunAudit() {
+    const pending = pendingRef.current;
+    if (!pending) return;
+    setIsAuditing(true);
+
+    const html    = renderMockHtml(pending.brief, pending.blueprint);
     const adapter = createUxAuditAdapter();
     const auditReport: AuditReport = await adapter.runAudit({
       html,
-      urlOrSnapshotId: `${brief.productName.toLowerCase().replace(/\s+/g, "-")}-run-${runs.length + 1}`,
+      urlOrSnapshotId: `${pending.brief.productName.toLowerCase().replace(/\s+/g, "-")}-run-${runs.length + 1}`,
     });
 
     const newRun: StudioRun = {
       id: makeId("run"),
       runNumber: runs.length + 1,
       createdAt: new Date().toISOString(),
-      brief: { ...brief },
-      blueprint,
+      brief: pending.brief,
+      blueprint: pending.blueprint,
       auditReport,
       review: { status: "pending_review", events: [] },
     };
 
     setRuns((prev) => [newRun, ...prev]);
     setSelectedRunId(newRun.id);
-    setIsGenerating(false);
+    pendingRef.current = null;
+    setIsAuditing(false);
     setCurrentStage("audit");
+  }
+
+  /* ── Re-audit an existing run ── */
+  async function handleReAudit() {
+    if (!selectedRun) return;
+    setIsAuditing(true);
+    const html    = renderMockHtml(selectedRun.brief, selectedRun.blueprint);
+    const adapter = createUxAuditAdapter();
+    const auditReport: AuditReport = await adapter.runAudit({
+      html,
+      urlOrSnapshotId: `${selectedRun.brief.productName.toLowerCase().replace(/\s+/g, "-")}-reaudit-${Date.now()}`,
+    });
+    setRuns((prev) => prev.map((r) => r.id === selectedRun.id ? { ...r, auditReport } : r));
+    setIsAuditing(false);
   }
 
   function handleSelectRun(id: string) {
     setSelectedRunId(id);
     setActiveSection(undefined);
+    pendingRef.current = null;
     if (runs.find((r) => r.id === id)) setCurrentStage("audit");
   }
 
   function handleNewRun() {
     setSelectedRunId("");
+    pendingRef.current = null;
     setCurrentStage("brief");
     setActiveSection(undefined);
   }
@@ -168,72 +198,104 @@ export default function StudioPage() {
   }
 
   const handleApprove = useCallback((runId: string, note: string) => {
-    setRuns((prev) =>
-      prev.map((r) =>
-        r.id !== runId
-          ? r
-          : {
-              ...r,
-              review: {
-                status: "approved",
-                events: [
-                  ...r.review.events,
-                  { id: makeId("ev"), at: new Date().toISOString(), action: "approved", reviewer: "You", note },
-                ],
-              },
-            }
-      )
-    );
+    setRuns((prev) => prev.map((r) => r.id !== runId ? r : {
+      ...r,
+      review: {
+        status: "approved",
+        events: [...r.review.events, { id: makeId("ev"), at: new Date().toISOString(), action: "approved", reviewer: "You", note }],
+      },
+    }));
   }, []);
 
   const handleReject = useCallback((runId: string, note: string) => {
-    setRuns((prev) =>
-      prev.map((r) =>
-        r.id !== runId
-          ? r
-          : {
-              ...r,
-              review: {
-                status: "rejected",
-                events: [
-                  ...r.review.events,
-                  { id: makeId("ev"), at: new Date().toISOString(), action: "rejected", reviewer: "You", note },
-                ],
-              },
-            }
-      )
-    );
+    setRuns((prev) => prev.map((r) => r.id !== runId ? r : {
+      ...r,
+      review: {
+        status: "rejected",
+        events: [...r.review.events, { id: makeId("ev"), at: new Date().toISOString(), action: "rejected", reviewer: "You", note }],
+      },
+    }));
   }, []);
 
-  /* Top-bar actions per stage */
+  /* ── Keyboard shortcuts ── */
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      const meta = e.metaKey || e.ctrlKey;
+      // Don't fire when typing in an input/textarea
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+
+      // Cmd+Enter → advance the primary action for the current stage
+      if (meta && e.key === "Enter") {
+        e.preventDefault();
+        if (currentStage === "brief" && !isGenerating && brief.productName.trim()) {
+          handleGenerate();
+        } else if (currentStage === "blueprint" && !isAuditing && !isGenerating && pendingRef.current) {
+          handleRunAudit();
+        } else if (currentStage === "audit" && selectedRun) {
+          setCurrentStage("export");
+        }
+      }
+
+      // Cmd+Shift+R → re-audit
+      if (meta && e.shiftKey && e.key === "r") {
+        e.preventDefault();
+        if (currentStage === "audit" && selectedRun && !isAuditing) handleReAudit();
+      }
+
+      // Cmd+Shift+V → open review drawer
+      if (meta && e.shiftKey && e.key === "v") {
+        e.preventDefault();
+        if (currentStage === "audit" && selectedRun) setReviewOpen((o) => !o);
+      }
+
+      // Escape → close review drawer
+      if (e.key === "Escape" && reviewOpen) {
+        setReviewOpen(false);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStage, isGenerating, isAuditing, brief, selectedRun, reviewOpen]);
+
+  /* ── Top-bar actions ── */
   const primaryAction = (() => {
+    const gradientStyle = {
+      background: "linear-gradient(135deg, var(--color-ps-accent-dim), var(--color-ps-accent))",
+      boxShadow: "0 4px 16px rgba(124,58,237,0.25)",
+      border: "none",
+      color: "var(--color-ps-accent-soft)",
+    };
+
     switch (currentStage) {
       case "brief":
         return (
           <Button
-            variant="primary"
-            size="md"
+            variant="primary" size="md"
             onClick={handleGenerate}
             disabled={isGenerating || !brief.productName.trim()}
-            style={{
-              background: "linear-gradient(135deg, var(--color-ps-accent-dim), var(--color-ps-accent))",
-              boxShadow: "0 4px 16px rgba(124,58,237,0.25)",
-              border: "none",
-              color: "var(--color-ps-accent-soft)",
-            }}
+            style={gradientStyle}
+            title="⌘↩"
           >
             {isGenerating ? "Generating…" : "Generate →"}
           </Button>
         );
       case "blueprint":
-        return selectedRun ? (
-          <Button variant="primary" size="md" onClick={() => setCurrentStage("audit")}>
-            View Audit →
+        return (
+          <Button
+            variant="primary" size="md"
+            onClick={handleRunAudit}
+            disabled={isAuditing || isGenerating || !pendingRef.current}
+            style={gradientStyle}
+            title="⌘↩"
+          >
+            {isAuditing ? "Auditing…" : "Run Audit →"}
           </Button>
-        ) : null;
+        );
       case "audit":
         return selectedRun ? (
-          <Button variant="primary" size="md" onClick={() => setCurrentStage("export")}>
+          <Button variant="primary" size="md" onClick={() => setCurrentStage("export")} title="⌘↩">
             Proceed to Export →
           </Button>
         ) : null;
@@ -243,14 +305,21 @@ export default function StudioPage() {
   })();
 
   const secondaryAction = (() => {
+    if (currentStage === "blueprint") {
+      return (
+        <Button variant="ghost" size="md" onClick={handleGenerate} disabled={isGenerating}>
+          ↺ Regenerate
+        </Button>
+      );
+    }
     if (currentStage === "audit" && selectedRun) {
       return (
         <div className="flex gap-2">
-          <Button variant="ghost" size="md" onClick={() => setReviewOpen(true)}>
+          <Button variant="ghost" size="md" onClick={() => setReviewOpen(true)} title="⌘⇧V">
             Review
           </Button>
-          <Button variant="ghost" size="md" onClick={handleGenerate} disabled={isGenerating}>
-            Re-Audit
+          <Button variant="ghost" size="md" onClick={handleReAudit} disabled={isAuditing} title="⌘⇧R">
+            {isAuditing ? "Auditing…" : "Re-Audit"}
           </Button>
         </div>
       );
@@ -265,7 +334,10 @@ export default function StudioPage() {
     return undefined;
   })();
 
-  /* Stage content */
+  /* ── Canvas ── */
+  const pendingBlueprint = pendingRef.current?.blueprint ?? null;
+  const pendingBrief     = pendingRef.current?.brief ?? brief;
+
   function renderCanvas() {
     switch (currentStage) {
       case "brief":
@@ -273,32 +345,44 @@ export default function StudioPage() {
 
       case "blueprint":
         return (
-          <div className="flex flex-col gap-4 h-full">
-            <Tabs items={BLUEPRINT_TABS} activeId={blueprintTab} onChange={setBlueprintTab} />
+          <div className="flex flex-col h-full gap-0">
+            <Tabs
+              items={BLUEPRINT_TABS}
+              activeId={blueprintTab}
+              onChange={setBlueprintTab}
+              className="shrink-0"
+            />
             <div
-              id={`tabpanel-blueprint`}
-              role="tabpanel"
-              aria-labelledby="tab-blueprint"
+              role="tabpanel" id="tabpanel-blueprint" aria-labelledby="tab-blueprint"
               hidden={blueprintTab !== "blueprint"}
-              className="flex-1"
+              className="flex-1 overflow-y-auto pt-5"
             >
-              <BlueprintView blueprint={selectedRun?.blueprint ?? null} isGenerating={isGenerating} />
+              <BlueprintView blueprint={pendingBlueprint} isGenerating={isGenerating} />
             </div>
             <div
-              id={`tabpanel-theme`}
-              role="tabpanel"
-              aria-labelledby="tab-theme"
+              role="tabpanel" id="tabpanel-theme" aria-labelledby="tab-theme"
               hidden={blueprintTab !== "theme"}
-              className="flex-1"
+              className="flex-1 overflow-y-auto pt-5"
             >
-              <ThemePanel brief={brief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} />
+              <ThemePanel brief={pendingBrief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} />
+            </div>
+            <div
+              role="tabpanel" id="tabpanel-copy" aria-labelledby="tab-copy"
+              hidden={blueprintTab !== "copy"}
+              className="flex-1 overflow-y-auto pt-5"
+            >
+              <CopyPanel brief={pendingBrief} blueprint={pendingBlueprint} />
             </div>
           </div>
         );
 
       case "audit":
         return (
-          <AuditPanel auditReport={selectedRun?.auditReport ?? null} onAutoFix={handleAutoFix} isGenerating={isGenerating} />
+          <AuditPanel
+            auditReport={selectedRun?.auditReport ?? null}
+            onAutoFix={handleAutoFix}
+            isGenerating={isAuditing}
+          />
         );
 
       case "export":
@@ -319,9 +403,7 @@ export default function StudioPage() {
         currentStage={currentStage}
         completedStages={completedStages}
         onStageClick={(stage) => {
-          if (completedStages.includes(stage) || stage === currentStage) {
-            setCurrentStage(stage);
-          }
+          if (completedStages.includes(stage) || stage === currentStage) setCurrentStage(stage);
         }}
         primaryAction={primaryAction}
         secondaryAction={secondaryAction}

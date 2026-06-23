@@ -10,3 +10,4 @@ export { AuditPanel } from "./AuditPanel";
 export { ExportView } from "./ExportView";
 export { ThemePanel } from "./ThemePanel";
 export { ReviewDrawer } from "./ReviewDrawer";
+export { CopyPanel } from "./CopyPanel";
