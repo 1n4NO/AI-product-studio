@@ -7,7 +7,7 @@
    ───────────────────────────────────────── */
 @theme {
   /* Typography */
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
 
   /* Surfaces — dark layered system */
@@ -43,6 +43,10 @@
 
   /* Info (readability category text) */
   --color-ps-info-soft:    #818cf8;
+
+  /* Accent tints — for card backgrounds, hover washes */
+  --color-ps-accent-tint:  #1a1230;  /* very dark purple wash */
+  --color-ps-accent-glow:  #2d1a50;  /* slightly lifted purple */
 }
 
 /* ─────────────────────────────────────────
