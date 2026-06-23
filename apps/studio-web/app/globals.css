@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+/* ─────────────────────────────────────────
+   Design Tokens
+   All visual constants live here.
+   Never hard-code hex values in component files.
+   ───────────────────────────────────────── */
+@theme {
+  /* Typography */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+
+  /* Surfaces — dark layered system */
+  --color-ps-canvas:  #0c0c0f;   /* page background */
+  --color-ps-surface: #0f0f14;   /* card / sidebar background */
+  --color-ps-raised:  #14141e;   /* hover states, elevated elements */
+
+  /* Borders */
+  --color-ps-border:        #1e1e26;
+  --color-ps-border-subtle: #14141e;
+
+  /* Accent — purple ramp */
+  --color-ps-accent:     #7c3aed;
+  --color-ps-accent-dim: #4f1da3;
+  --color-ps-accent-soft:#a78bfa;
+
+  /* Text — ink ramp */
+  --color-ps-ink:       #e2e2f0;
+  --color-ps-ink-dim:   #8080b0;
+  --color-ps-ink-ghost: #4a4a6a;
+
+  /* Semantic */
+  --color-ps-ok:   #30a060;
+  --color-ps-err:  #ef4444;
+  --color-ps-warn: #eab308;
+  --color-ps-info: #4f46e5;
+
+  /* Severity — audit findings */
+  --color-ps-sev-critical: #ef4444;
+  --color-ps-sev-high:     #f97316;
+  --color-ps-sev-medium:   #eab308;
+  --color-ps-sev-low:      #22c55e;
+
+  /* Info (readability category text) */
+  --color-ps-info-soft:    #818cf8;
+}
+
+/* ─────────────────────────────────────────
+   Base Reset
+   ───────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  background-color: var(--color-ps-canvas);
+  color: var(--color-ps-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ─────────────────────────────────────────
+   Scrollbar
+   ───────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-ps-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-ps-ink-ghost);
+}

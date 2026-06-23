@@ -5,6 +5,66 @@ An AI-powered product creation pipeline that combines:
 - `themeBuilder` for design system and visual theme synthesis
 - `ux-audit-tool` for deterministic quality checks before publish
 
+## Component Architecture
+
+`apps/studio-web` follows **Brad Frost's Atomic Design** methodology. Every UI component lives in exactly one layer of the hierarchy. Imports only flow downward — templates know about organisms, organisms know about molecules, molecules know about atoms. Nothing flows upward.
+
+```
+apps/studio-web/components/
+├── atoms/               # Smallest indivisible units. No internal state, no business logic.
+│   ├── Button.tsx           variant × size primitive
+│   ├── Badge.tsx            status and score indicator
+│   ├── Input.tsx            single-line text field
+│   ├── Textarea.tsx         multi-line text field
+│   ├── Label.tsx            semantic form label
+│   └── ScoreRing.tsx        SVG donut score visualizer
+│
+├── molecules/           # Atoms composed into a single functional unit.
+│   ├── FormField.tsx        Label + Input/Textarea + error
+│   ├── ToneSelector.tsx     group of selectable tone chips
+│   ├── ConstraintTag.tsx    removable constraint chip (single + list)
+│   ├── CategoryBar.tsx      audit category name + progress bar + value
+│   ├── FindingCard.tsx      severity bar + title + description + CTA
+│   └── RunItem.tsx          run name + score + review badge (sidebar row)
+│
+├── organisms/           # Distinct UI sections built from molecules and atoms.
+│   ├── Sidebar.tsx          logo, new-run button, run history, nav links
+│   └── StageBar.tsx         4-step workflow progress stepper
+│
+└── templates/           # Layout shells with named slots. No data fetching.
+    └── StudioLayout.tsx     sidebar + topbar + scrollable canvas
+```
+
+### Atomic Design Rules
+
+1. **Atoms** import only from React, design tokens, and `lib/cn`.
+2. **Molecules** import from `atoms/` and React only.
+3. **Organisms** import from `molecules/`, `atoms/`, shared types, and React.
+4. **Templates** import from `organisms/` and define layout structure only.
+5. **Pages** (`app/` routes) import from templates, organisms, and `lib/`.
+6. New components go in the lowest layer where all their dependencies already live.
+7. If a component needs server data or context, it belongs in a page or a provider — not in atoms or molecules.
+
+### Design Tokens
+
+All visual constants live in `app/globals.css` under `@theme`. Never hard-code hex values in component files. Use Tailwind utilities generated from the token set:
+
+| Token | Utility | Value |
+|---|---|---|
+| `--color-ps-canvas` | `bg-ps-canvas` | `#0c0c0f` |
+| `--color-ps-surface` | `bg-ps-surface` | `#0f0f14` |
+| `--color-ps-raised` | `bg-ps-raised` | `#14141e` |
+| `--color-ps-border` | `border-ps-border` | `#1e1e26` |
+| `--color-ps-accent` | `bg-ps-accent` / `text-ps-accent` | `#7c3aed` |
+| `--color-ps-accent-dim` | `bg-ps-accent-dim` | `#4f1da3` |
+| `--color-ps-accent-soft` | `text-ps-accent-soft` | `#a78bfa` |
+| `--color-ps-ink` | `text-ps-ink` | `#e2e2f0` |
+| `--color-ps-ink-dim` | `text-ps-ink-dim` | `#8080b0` |
+| `--color-ps-ink-ghost` | `text-ps-ink-ghost` | `#4a4a6a` |
+| `--color-ps-ok` | `text-ps-ok` | `#30a060` |
+| `--color-ps-err` | `text-ps-err` | `#ef4444` |
+| `--color-ps-warn` | `text-ps-warn` | `#eab308` |
+
 ## Vision
 
 Product Studio takes a simple brief and produces a launch-ready landing page with:
