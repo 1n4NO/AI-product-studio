@@ -14,10 +14,15 @@ import { ExportView } from "@/components/organisms/ExportView";
 import { ThemePanel } from "@/components/organisms/ThemePanel";
 import { CopyPanel } from "@/components/organisms/CopyPanel";
 import { ReviewDrawer } from "@/components/organisms/ReviewDrawer";
+import { SettingsDrawer } from "@/components/organisms/SettingsDrawer";
+import type { AppSettings } from "@/components/organisms/SettingsDrawer";
+import { DEFAULT_SETTINGS } from "@/components/organisms/SettingsDrawer";
 import type { Stage } from "@/components/organisms/StageBar";
 import type { SidebarSection } from "@/components/organisms/Sidebar";
 import type { RunSummary } from "@/components/molecules/RunItem";
 import type { StudioRun, AuditFinding } from "@/lib/types";
+import { useToast } from "@/lib/toast";
+import { storage, STORAGE_KEYS } from "@/lib/persistence";
 
 /* ─── Constants ──────────────────────────────── */
 
@@ -73,8 +78,12 @@ function makeId(prefix: string): string {
 /* ─── Page ───────────────────────────────────── */
 
 export default function StudioPage() {
-  const [brief, setBrief]                 = useState<Brief>(INITIAL_BRIEF);
-  const [runs, setRuns]                   = useState<StudioRun[]>([]);
+  const { toast } = useToast();
+
+  // Restore persisted brief; fall back to default
+  const [brief, setBriefRaw]              = useState<Brief>(() => storage.get(STORAGE_KEYS.brief, INITIAL_BRIEF));
+  const [runs, setRunsRaw]                = useState<StudioRun[]>(() => storage.get(STORAGE_KEYS.runs, []));
+  const [settings, setSettings]           = useState<AppSettings>(() => storage.get(STORAGE_KEYS.settings, DEFAULT_SETTINGS));
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [currentStage, setCurrentStage]   = useState<Stage>("brief");
   const [activeSection, setActiveSection] = useState<SidebarSection | undefined>();
@@ -83,9 +92,27 @@ export default function StudioPage() {
   const [blueprintTab, setBlueprintTab]   = useState<string>("blueprint");
   const [selectedTheme, setSelectedTheme] = useState<ThemeTokens | null>(null);
   const [reviewOpen, setReviewOpen]       = useState(false);
+  const [settingsOpen, setSettingsOpen]   = useState(false);
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
+
+  /* ── Persist brief on change ── */
+  function setBrief(b: Brief) {
+    setBriefRaw(b);
+    storage.set(STORAGE_KEYS.brief, b);
+  }
+
+  /* ── Persist runs on change ── */
+  function setRuns(updater: StudioRun[] | ((prev: StudioRun[]) => StudioRun[])) {
+    setRunsRaw((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      // Only persist last 20 runs to keep localStorage lean
+      const trimmed = next.slice(0, 20);
+      storage.set(STORAGE_KEYS.runs, trimmed);
+      return trimmed;
+    });
+  }
 
   /* ── Derived ── */
   const selectedRun = useMemo(
@@ -94,13 +121,14 @@ export default function StudioPage() {
   );
 
   const runSummaries: RunSummary[] = useMemo(
-    () => runs.map((r) => ({
-      id: r.id,
-      runNumber: r.runNumber,
-      productName: r.brief.productName,
-      score: r.auditReport.score,
-      reviewStatus: r.review.status,
-      createdAt: r.createdAt,
+    () => runs.map((r, i) => ({
+      id:            r.id,
+      runNumber:     r.runNumber,
+      productName:   r.brief.productName,
+      score:         r.auditReport.score,
+      previousScore: runs[i + 1]?.auditReport.score,
+      reviewStatus:  r.review.status,
+      createdAt:     r.createdAt,
     })),
     [runs]
   );
@@ -110,7 +138,7 @@ export default function StudioPage() {
     return order.slice(0, order.indexOf(currentStage)) as Stage[];
   }, [currentStage]);
 
-  /* ── Step 1: Generate blueprint → land on Blueprint stage ── */
+  /* ── Step 1: Generate blueprint ── */
   async function handleGenerate() {
     setIsGenerating(true);
     pendingRef.current = null;
@@ -126,16 +154,17 @@ export default function StudioPage() {
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       blueprint = (await res.json()) as PageBlueprint;
+      toast("Blueprint generated", "success");
     } catch {
-      console.warn("[Studio] Blueprint API failed — using mock");
       blueprint = buildMockBlueprint(brief);
+      toast("Using offline blueprint", "warning");
     }
 
     pendingRef.current = { brief: { ...brief }, blueprint };
     setIsGenerating(false);
   }
 
-  /* ── Step 2: Run Audit → create run → land on Audit stage ── */
+  /* ── Step 2: Run Audit ── */
   async function handleRunAudit() {
     const pending = pendingRef.current;
     if (!pending) return;
@@ -163,9 +192,10 @@ export default function StudioPage() {
     pendingRef.current = null;
     setIsAuditing(false);
     setCurrentStage("audit");
+    toast(`Audit complete — score ${auditReport.score}/100`, auditReport.score >= 70 ? "success" : "warning");
   }
 
-  /* ── Re-audit an existing run ── */
+  /* ── Re-audit existing run ── */
   async function handleReAudit() {
     if (!selectedRun) return;
     setIsAuditing(true);
@@ -175,8 +205,15 @@ export default function StudioPage() {
       html,
       urlOrSnapshotId: `${selectedRun.brief.productName.toLowerCase().replace(/\s+/g, "-")}-reaudit-${Date.now()}`,
     });
-    setRuns((prev) => prev.map((r) => r.id === selectedRun.id ? { ...r, auditReport } : r));
+    const prev = selectedRun.auditReport.score;
+    const next = auditReport.score;
+    setRuns((prevRuns) => prevRuns.map((r) => r.id === selectedRun.id ? { ...r, auditReport } : r));
     setIsAuditing(false);
+    const delta = next - prev;
+    const msg = delta === 0
+      ? `Re-audit complete — score unchanged (${next})`
+      : `Re-audit: ${next}/100 (${delta > 0 ? "▲" : "▼"}${Math.abs(delta)})`;
+    toast(msg, delta >= 0 ? "success" : "warning");
   }
 
   function handleSelectRun(id: string) {
@@ -194,7 +231,7 @@ export default function StudioPage() {
   }
 
   function handleAutoFix(_finding: AuditFinding) {
-    console.info("Auto-fix requested for:", _finding.id);
+    toast("Auto-fix queued (coming soon)", "info");
   }
 
   const handleApprove = useCallback((runId: string, note: string) => {
@@ -205,7 +242,8 @@ export default function StudioPage() {
         events: [...r.review.events, { id: makeId("ev"), at: new Date().toISOString(), action: "approved", reviewer: "You", note }],
       },
     }));
-  }, []);
+    toast("Run approved ✓", "success");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleReject = useCallback((runId: string, note: string) => {
     setRuns((prev) => prev.map((r) => r.id !== runId ? r : {
@@ -215,81 +253,61 @@ export default function StudioPage() {
         events: [...r.review.events, { id: makeId("ev"), at: new Date().toISOString(), action: "rejected", reviewer: "You", note }],
       },
     }));
-  }, []);
+    toast("Run rejected", "warning");
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ── Keyboard shortcuts ── */
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       const meta = e.metaKey || e.ctrlKey;
-      // Don't fire when typing in an input/textarea
-      const tag = (e.target as HTMLElement).tagName;
+      const tag  = (e.target as HTMLElement).tagName;
       if (tag === "INPUT" || tag === "TEXTAREA") return;
 
-      // Cmd+Enter → advance the primary action for the current stage
       if (meta && e.key === "Enter") {
         e.preventDefault();
-        if (currentStage === "brief" && !isGenerating && brief.productName.trim()) {
-          handleGenerate();
-        } else if (currentStage === "blueprint" && !isAuditing && !isGenerating && pendingRef.current) {
-          handleRunAudit();
-        } else if (currentStage === "audit" && selectedRun) {
-          setCurrentStage("export");
-        }
+        if (currentStage === "brief" && !isGenerating && brief.productName.trim()) handleGenerate();
+        else if (currentStage === "blueprint" && !isAuditing && !isGenerating && pendingRef.current) handleRunAudit();
+        else if (currentStage === "audit" && selectedRun) setCurrentStage("export");
       }
-
-      // Cmd+Shift+R → re-audit
       if (meta && e.shiftKey && e.key === "r") {
         e.preventDefault();
         if (currentStage === "audit" && selectedRun && !isAuditing) handleReAudit();
       }
-
-      // Cmd+Shift+V → open review drawer
       if (meta && e.shiftKey && e.key === "v") {
         e.preventDefault();
         if (currentStage === "audit" && selectedRun) setReviewOpen((o) => !o);
       }
-
-      // Escape → close review drawer
-      if (e.key === "Escape" && reviewOpen) {
-        setReviewOpen(false);
+      if (meta && e.key === ",") {
+        e.preventDefault();
+        setSettingsOpen((o) => !o);
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStage, isGenerating, isAuditing, brief, selectedRun, reviewOpen]);
+  }, [currentStage, isGenerating, isAuditing, brief, selectedRun]);
 
   /* ── Top-bar actions ── */
-  const primaryAction = (() => {
-    const gradientStyle = {
-      background: "linear-gradient(135deg, var(--color-ps-accent-dim), var(--color-ps-accent))",
-      boxShadow: "0 4px 16px rgba(124,58,237,0.25)",
-      border: "none",
-      color: "var(--color-ps-accent-soft)",
-    };
+  const gradientStyle = {
+    background: "linear-gradient(135deg, var(--color-ps-accent-dim), var(--color-ps-accent))",
+    boxShadow: "0 4px 16px rgba(124,58,237,0.25)",
+    border: "none",
+    color: "var(--color-ps-accent-soft)",
+  };
 
+  const primaryAction = (() => {
     switch (currentStage) {
       case "brief":
         return (
-          <Button
-            variant="primary" size="md"
-            onClick={handleGenerate}
-            disabled={isGenerating || !brief.productName.trim()}
-            style={gradientStyle}
-            title="⌘↩"
-          >
+          <Button variant="primary" size="md" onClick={handleGenerate}
+            disabled={isGenerating || !brief.productName.trim()} style={gradientStyle} title="⌘↩">
             {isGenerating ? "Generating…" : "Generate →"}
           </Button>
         );
       case "blueprint":
         return (
-          <Button
-            variant="primary" size="md"
-            onClick={handleRunAudit}
-            disabled={isAuditing || isGenerating || !pendingRef.current}
-            style={gradientStyle}
-            title="⌘↩"
-          >
+          <Button variant="primary" size="md" onClick={handleRunAudit}
+            disabled={isAuditing || isGenerating || !pendingRef.current} style={gradientStyle} title="⌘↩">
             {isAuditing ? "Auditing…" : "Run Audit →"}
           </Button>
         );
@@ -315,9 +333,7 @@ export default function StudioPage() {
     if (currentStage === "audit" && selectedRun) {
       return (
         <div className="flex gap-2">
-          <Button variant="ghost" size="md" onClick={() => setReviewOpen(true)} title="⌘⇧V">
-            Review
-          </Button>
+          <Button variant="ghost" size="md" onClick={() => setReviewOpen(true)} title="⌘⇧V">Review</Button>
           <Button variant="ghost" size="md" onClick={handleReAudit} disabled={isAuditing} title="⌘⇧R">
             {isAuditing ? "Auditing…" : "Re-Audit"}
           </Button>
@@ -326,9 +342,7 @@ export default function StudioPage() {
     }
     if (currentStage === "export") {
       return (
-        <Button variant="ghost" size="md" onClick={() => setCurrentStage("audit")}>
-          ← Back to Audit
-        </Button>
+        <Button variant="ghost" size="md" onClick={() => setCurrentStage("audit")}>← Back to Audit</Button>
       );
     }
     return undefined;
@@ -346,31 +360,17 @@ export default function StudioPage() {
       case "blueprint":
         return (
           <div className="flex flex-col h-full gap-0">
-            <Tabs
-              items={BLUEPRINT_TABS}
-              activeId={blueprintTab}
-              onChange={setBlueprintTab}
-              className="shrink-0"
-            />
-            <div
-              role="tabpanel" id="tabpanel-blueprint" aria-labelledby="tab-blueprint"
-              hidden={blueprintTab !== "blueprint"}
-              className="flex-1 overflow-y-auto pt-5"
-            >
+            <Tabs items={BLUEPRINT_TABS} activeId={blueprintTab} onChange={setBlueprintTab} className="shrink-0" />
+            <div role="tabpanel" id="tabpanel-blueprint" aria-labelledby="tab-blueprint"
+              hidden={blueprintTab !== "blueprint"} className="flex-1 overflow-y-auto pt-5">
               <BlueprintView blueprint={pendingBlueprint} isGenerating={isGenerating} />
             </div>
-            <div
-              role="tabpanel" id="tabpanel-theme" aria-labelledby="tab-theme"
-              hidden={blueprintTab !== "theme"}
-              className="flex-1 overflow-y-auto pt-5"
-            >
+            <div role="tabpanel" id="tabpanel-theme" aria-labelledby="tab-theme"
+              hidden={blueprintTab !== "theme"} className="flex-1 overflow-y-auto pt-5">
               <ThemePanel brief={pendingBrief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} />
             </div>
-            <div
-              role="tabpanel" id="tabpanel-copy" aria-labelledby="tab-copy"
-              hidden={blueprintTab !== "copy"}
-              className="flex-1 overflow-y-auto pt-5"
-            >
+            <div role="tabpanel" id="tabpanel-copy" aria-labelledby="tab-copy"
+              hidden={blueprintTab !== "copy"} className="flex-1 overflow-y-auto pt-5">
               <CopyPanel brief={pendingBrief} blueprint={pendingBlueprint} />
             </div>
           </div>
@@ -378,11 +378,7 @@ export default function StudioPage() {
 
       case "audit":
         return (
-          <AuditPanel
-            auditReport={selectedRun?.auditReport ?? null}
-            onAutoFix={handleAutoFix}
-            isGenerating={isAuditing}
-          />
+          <AuditPanel auditReport={selectedRun?.auditReport ?? null} onAutoFix={handleAutoFix} isGenerating={isAuditing} />
         );
 
       case "export":
@@ -399,6 +395,7 @@ export default function StudioPage() {
         onNewRun={handleNewRun}
         activeSection={activeSection}
         onNavigate={(section) => setActiveSection(section)}
+        onOpenSettings={() => setSettingsOpen(true)}
         projectName={selectedRun?.brief.productName ?? brief.productName}
         currentStage={currentStage}
         completedStages={completedStages}
@@ -417,6 +414,16 @@ export default function StudioPage() {
         onClose={() => setReviewOpen(false)}
         onApprove={handleApprove}
         onReject={handleReject}
+      />
+
+      <SettingsDrawer
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onSave={(s) => {
+          setSettings(s);
+          setSettingsOpen(false);
+          toast("Settings saved", "success");
+        }}
       />
     </>
   );

@@ -20,6 +20,7 @@ interface StudioLayoutProps {
   onNewRun: () => void;
   activeSection?: SidebarSection;
   onNavigate?: (section: SidebarSection) => void;
+  onOpenSettings?: () => void;
 
   /* ── Top bar props ── */
   projectName: string;
@@ -43,6 +44,7 @@ export function StudioLayout({
   onNewRun,
   activeSection,
   onNavigate,
+  onOpenSettings,
   projectName,
   currentStage,
   completedStages,
@@ -61,6 +63,7 @@ export function StudioLayout({
         onNewRun={onNewRun}
         activeSection={activeSection}
         onNavigate={onNavigate}
+        onOpenSettings={onOpenSettings}
       />
 
       {/* ── Main column ── */}

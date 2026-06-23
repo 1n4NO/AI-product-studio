@@ -14,6 +14,7 @@ interface SidebarProps {
   onNewRun: () => void;
   activeSection?: SidebarSection;
   onNavigate?: (section: SidebarSection) => void;
+  onOpenSettings?: () => void;
   className?: string;
 }
 
@@ -30,6 +31,7 @@ export function Sidebar({
   onNewRun,
   activeSection,
   onNavigate,
+  onOpenSettings,
   className,
 }: SidebarProps) {
   return (
@@ -106,12 +108,18 @@ export function Sidebar({
                 : "text-ps-ink-ghost hover:bg-ps-raised hover:text-ps-ink-dim"
             )}
           >
-            <span className="w-4 text-center text-[13px]" aria-hidden="true">
-              {item.icon}
-            </span>
+            <span className="w-4 text-center text-[13px]" aria-hidden="true">{item.icon}</span>
             {item.label}
           </button>
         ))}
+        {/* Settings */}
+        <button
+          onClick={onOpenSettings}
+          className="flex items-center gap-2.5 px-3 py-2 rounded-md text-[12px] transition-colors w-full text-left text-ps-ink-ghost hover:bg-ps-raised hover:text-ps-ink-dim"
+        >
+          <span className="w-4 text-center text-[13px]" aria-hidden="true">⚙</span>
+          Settings
+        </button>
       </nav>
     </aside>
   );
