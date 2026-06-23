@@ -18,3 +18,4 @@ export { SloPanel } from "./SloPanel";
 export { ExportsPanel } from "./ExportsPanel";
 export { OnboardingHero } from "./OnboardingHero";
 export { TemplateDrawer } from "./TemplateDrawer";
+export { PreviewPane } from "./PreviewPane";

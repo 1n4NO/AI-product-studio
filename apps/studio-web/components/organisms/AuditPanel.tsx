@@ -8,9 +8,11 @@ import { FindingCard } from "@/components/molecules/FindingCard";
 import { cn } from "@/lib/cn";
 
 interface AuditPanelProps {
-  auditReport:  AuditReport | null;
-  onAutoFix?:   (finding: AuditFinding) => void;
+  auditReport:   AuditReport | null;
+  onAutoFix?:    (finding: AuditFinding) => void;
   isGenerating?: boolean;
+  /** Recent scores for the same product (chronological, newest last) */
+  scoreHistory?: number[];
 }
 
 type Severity = AuditFinding["severity"];
@@ -97,8 +99,59 @@ function FilterChip({
   );
 }
 
+/* ── Micro score sparkline ─────────────────────────────────────────────── */
+function ScoreSparkline({ scores }: { scores: number[] }) {
+  if (scores.length < 2) return null;
+  const W = 160, H = 28, PAD = 4;
+  const lo    = Math.min(...scores);
+  const hi    = Math.max(...scores, lo + 1);
+  const range = hi - lo;
+  const pts   = scores.map((s, i) => ({
+    x: PAD + (i / (scores.length - 1)) * (W - PAD * 2),
+    y: H - PAD - ((s - lo) / range) * (H - PAD * 2),
+  }));
+  const polyPts = pts.map((p) => `${p.x},${p.y}`).join(" ");
+  const last    = pts[pts.length - 1];
+  const trend   = scores[scores.length - 1] - scores[0];
+  const trendColor = trend > 0 ? "var(--color-ps-ok)" : trend < 0 ? "var(--color-ps-err)" : "var(--color-ps-ink-ghost)";
+
+  return (
+    <div className="flex flex-col gap-1.5 pt-4 border-t" style={{ borderColor: "var(--color-ps-border)" }}>
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--color-ps-ink-ghost)" }}>
+          Score History
+        </span>
+        <span className="text-[10px] font-semibold font-mono" style={{ color: trendColor }}>
+          {trend > 0 ? "▲" : trend < 0 ? "▼" : "—"}{trend !== 0 ? Math.abs(trend) : ""}
+        </span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" height={H} aria-label="Score history sparkline">
+        <polyline
+          points={polyPts}
+          fill="none"
+          stroke="var(--color-ps-accent)"
+          strokeWidth={1.5}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+        />
+        {pts.map((p, i) => (
+          <circle key={i} cx={p.x} cy={p.y} r={i === pts.length - 1 ? 3 : 2}
+            fill="var(--color-ps-accent)" opacity={i === pts.length - 1 ? 1 : 0.4} />
+        ))}
+        <text x={last.x} y={last.y - 5} textAnchor="middle" fontSize={8}
+          fontWeight="700" fill="var(--color-ps-accent)">
+          {scores[scores.length - 1]}
+        </text>
+      </svg>
+      <p className="text-[9px]" style={{ color: "var(--color-ps-ink-ghost)" }}>
+        Last {scores.length} run{scores.length !== 1 ? "s" : ""} for this product
+      </p>
+    </div>
+  );
+}
+
 /* ── Main panel ────────────────────────────────────────────────────────── */
-export function AuditPanel({ auditReport, onAutoFix, isGenerating }: AuditPanelProps) {
+export function AuditPanel({ auditReport, onAutoFix, isGenerating, scoreHistory }: AuditPanelProps) {
   /* Filter state */
   const [severities, setSeverities] = useState<Set<Severity>>(new Set());
   const [categories, setCategories] = useState<Set<Category>>(new Set());
@@ -302,6 +355,11 @@ export function AuditPanel({ auditReport, onAutoFix, isGenerating }: AuditPanelP
               </p>
             )}
           </div>
+
+          {/* Score history sparkline */}
+          {scoreHistory && scoreHistory.length >= 2 && (
+            <ScoreSparkline scores={scoreHistory} />
+          )}
         </aside>
 
         {/* Findings list */}

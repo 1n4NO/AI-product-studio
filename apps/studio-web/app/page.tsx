@@ -7,6 +7,8 @@ import { SloPanel } from "@/components/organisms/SloPanel";
 import { ExportsPanel } from "@/components/organisms/ExportsPanel";
 import { OnboardingHero } from "@/components/organisms/OnboardingHero";
 import { TemplateDrawer } from "@/components/organisms/TemplateDrawer";
+import { PreviewPane } from "@/components/organisms/PreviewPane";
+import { renderPageHtml } from "@/lib/renderHtml";
 import { ShortcutsModal } from "@/components/molecules/ShortcutsModal";
 import { useStageTransition } from "@/lib/useStageTransition";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
@@ -47,6 +49,7 @@ const BLUEPRINT_TABS = [
   { id: "blueprint", label: "Blueprint" },
   { id: "theme",     label: "Theme"     },
   { id: "copy",      label: "Copy"      },
+  { id: "preview",   label: "Preview"   },
 ];
 
 /* ─── Helpers ────────────────────────────────── */
@@ -66,18 +69,7 @@ function buildMockBlueprint(brief: Brief): PageBlueprint {
   };
 }
 
-function renderMockHtml(brief: Brief, blueprint: PageBlueprint): string {
-  return `<html lang="en">
-    <head><title>${brief.productName}</title><meta name="description" content="${brief.valueProposition}" /></head>
-    <main>
-      <h1>${brief.productName}</h1><p>${brief.valueProposition}</p>
-      <section><h2>${blueprint.sections[2]?.intent ?? "Features"}</h2>
-        <img src="/feature.png" alt="Feature preview" /><img src="/screenshot.png" />
-      </section>
-      <button>${brief.ctaGoal}</button>
-    </main>
-  </html>`;
-}
+/* renderMockHtml is now renderPageHtml from @/lib/renderHtml */
 
 function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -184,7 +176,7 @@ export default function StudioPage() {
     if (!pending) return;
     setIsAuditing(true);
 
-    const html    = renderMockHtml(pending.brief, pending.blueprint);
+    const html    = renderPageHtml(pending.brief, pending.blueprint);
     const adapter = createUxAuditAdapter();
     const auditReport: AuditReport = await adapter.runAudit({
       html,
@@ -213,7 +205,7 @@ export default function StudioPage() {
   async function handleReAudit() {
     if (!selectedRun) return;
     setIsAuditing(true);
-    const html    = renderMockHtml(selectedRun.brief, selectedRun.blueprint);
+    const html    = renderPageHtml(selectedRun.brief, selectedRun.blueprint);
     const adapter = createUxAuditAdapter();
     const auditReport: AuditReport = await adapter.runAudit({
       html,
@@ -428,12 +420,37 @@ export default function StudioPage() {
               hidden={blueprintTab !== "copy"} className="flex-1 overflow-y-auto pt-5">
               <CopyPanel brief={pendingBrief} blueprint={pendingBlueprint} />
             </div>
+            <div role="tabpanel" id="tabpanel-preview" aria-labelledby="tab-preview"
+              hidden={blueprintTab !== "preview"} className="flex-1 overflow-hidden pt-4">
+              {pendingBlueprint ? (
+                <PreviewPane
+                  html={renderPageHtml(pendingBrief, pendingBlueprint)}
+                  className="h-full"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-40 text-sm" style={{ color: "var(--color-ps-ink-ghost)" }}>
+                  Generate a blueprint first to see the preview.
+                </div>
+              )}
+            </div>
           </div>
         );
 
       case "audit":
         return (
-          <AuditPanel auditReport={selectedRun?.auditReport ?? null} onAutoFix={handleAutoFix} isGenerating={isAuditing} />
+          <AuditPanel
+            auditReport={selectedRun?.auditReport ?? null}
+            onAutoFix={handleAutoFix}
+            isGenerating={isAuditing}
+            scoreHistory={
+              selectedRun
+                ? [...runs]
+                    .filter((r) => r.brief.productName === selectedRun.brief.productName)
+                    .reverse()
+                    .map((r) => r.auditReport.score)
+                : undefined
+            }
+          />
         );
 
       case "export":
@@ -484,6 +501,35 @@ export default function StudioPage() {
           setSettings(s);
           setSettingsOpen(false);
           toast("Settings saved", "success");
+        }}
+        onExportProject={() => {
+          const payload = {
+            exportedAt: new Date().toISOString(),
+            version:    1,
+            brief,
+            runs,
+          };
+          const json = JSON.stringify(payload, null, 2);
+          const blob = new Blob([json], { type: "application/json" });
+          const url  = URL.createObjectURL(blob);
+          const a    = document.createElement("a");
+          a.href = url;
+          a.download = `product-studio-project-${Date.now()}.json`;
+          a.click();
+          URL.revokeObjectURL(url);
+          toast("Project exported", "success");
+        }}
+        onImportProject={(json) => {
+          try {
+            const data = JSON.parse(json);
+            if (!Array.isArray(data.runs)) throw new Error("Missing runs array");
+            if (data.brief) setBrief(data.brief);
+            setRuns(data.runs);
+            setSettingsOpen(false);
+            toast(`Imported ${data.runs.length} run${data.runs.length !== 1 ? "s" : ""}`, "success");
+          } catch {
+            toast("Import failed — invalid project file", "error");
+          }
         }}
       />
 

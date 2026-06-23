@@ -6,6 +6,13 @@ import { Input } from "@/components/atoms/Input";
 import { Label } from "@/components/atoms/Label";
 import { storage, STORAGE_KEYS } from "@/lib/persistence";
 
+function downloadBlob(filename: string, content: string, mime: string) {
+  const url = URL.createObjectURL(new Blob([content], { type: mime }));
+  const a   = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
 export interface AppSettings {
   anthropicApiKey: string;
   ollamaBaseUrl: string;
@@ -21,9 +28,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
 };
 
 interface SettingsDrawerProps {
-  isOpen:  boolean;
-  onClose: () => void;
-  onSave:  (settings: AppSettings) => void;
+  isOpen:            boolean;
+  onClose:           () => void;
+  onSave:            (settings: AppSettings) => void;
+  /** Called with raw JSON string when user selects an import file */
+  onImportProject?:  (json: string) => void;
+  /** Called when user wants to export all project data */
+  onExportProject?:  () => void;
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
@@ -40,10 +51,12 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function SettingsDrawer({ isOpen, onClose, onSave }: SettingsDrawerProps) {
-  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
-  const [showKey, setShowKey]   = useState(false);
-  const [saved, setSaved]       = useState(false);
+export function SettingsDrawer({ isOpen, onClose, onSave, onImportProject, onExportProject }: SettingsDrawerProps) {
+  const [settings, setSettings]   = useState<AppSettings>(DEFAULT_SETTINGS);
+  const [showKey, setShowKey]     = useState(false);
+  const [saved, setSaved]         = useState(false);
+  const [importError, setImportError] = useState("");
+  const fileInputRef              = useRef<HTMLInputElement>(null);
 
   // Load persisted settings on open
   useEffect(() => {
@@ -209,6 +222,60 @@ export function SettingsDrawer({ isOpen, onClose, onSave }: SettingsDrawerProps)
                 <span>100 — always require perfect</span>
               </div>
             </div>
+          </Section>
+
+          {/* Project */}
+          <Section title="Project">
+            <p className="text-xs leading-relaxed" style={{ color: "var(--color-ps-ink-dim)" }}>
+              Export all runs as a single JSON file to back up or share your project. Import restores runs from a previously exported file.
+            </p>
+            <div className="flex gap-2 flex-wrap">
+              <Button
+                variant="subtle"
+                size="sm"
+                onClick={onExportProject}
+              >
+                ↓ Export project JSON
+              </Button>
+              <Button
+                variant="subtle"
+                size="sm"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                ↑ Import project JSON
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                className="hidden"
+                aria-label="Import project JSON file"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  const reader = new FileReader();
+                  reader.onload = (ev) => {
+                    const text = ev.target?.result as string;
+                    try {
+                      // Validate it's parseable JSON
+                      JSON.parse(text);
+                      setImportError("");
+                      onImportProject?.(text);
+                    } catch {
+                      setImportError("Invalid JSON file — please export from Product Studio first.");
+                    }
+                  };
+                  reader.readAsText(file);
+                  // Reset so the same file can be re-selected
+                  e.target.value = "";
+                }}
+              />
+            </div>
+            {importError && (
+              <p className="text-[11px]" style={{ color: "var(--color-ps-err)" }}>
+                {importError}
+              </p>
+            )}
           </Section>
 
           {/* Danger zone */}
