@@ -13,3 +13,4 @@ export { ReviewDrawer } from "./ReviewDrawer";
 export { CopyPanel } from "./CopyPanel";
 export { SettingsDrawer } from "./SettingsDrawer";
 export type { AppSettings } from "./SettingsDrawer";
+export { ComparePanel } from "./ComparePanel";

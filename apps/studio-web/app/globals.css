@@ -50,6 +50,28 @@
 }
 
 /* ─────────────────────────────────────────
+   Stage Transition Keyframes
+   ───────────────────────────────────────── */
+@keyframes ps-stage-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+@keyframes ps-stage-out {
+  from { opacity: 1; transform: translateY(0);     }
+  to   { opacity: 0; transform: translateY(-8px);  }
+}
+
+.ps-stage-enter {
+  animation: ps-stage-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.ps-stage-exit {
+  animation: ps-stage-out 0.15s ease-in both;
+  pointer-events: none;
+}
+
+/* ─────────────────────────────────────────
    Base Reset
    ───────────────────────────────────────── */
 *, *::before, *::after {

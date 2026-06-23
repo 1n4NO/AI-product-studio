@@ -33,6 +33,8 @@ interface StudioLayoutProps {
   /** Secondary action button in top-right (e.g. "Save Draft") */
   secondaryAction?: ReactNode;
 
+  /** Extra class applied to the scrollable canvas <main> — used for transitions */
+  canvasClassName?: string;
   className?: string;
 }
 
@@ -51,6 +53,7 @@ export function StudioLayout({
   onStageClick,
   primaryAction,
   secondaryAction,
+  canvasClassName,
   className,
 }: StudioLayoutProps) {
   return (
@@ -95,7 +98,7 @@ export function StudioLayout({
         </header>
 
         {/* Scrollable canvas */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className={cn("flex-1 overflow-y-auto p-6", canvasClassName)}>
           {children}
         </main>
       </div>

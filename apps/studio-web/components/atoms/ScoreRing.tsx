@@ -1,9 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { AnimatedNumber } from "./AnimatedNumber";
 import { cn } from "@/lib/cn";
 
 interface ScoreRingProps {
-  score: number;          // 0–100
-  size?: number;          // px, default 110
-  strokeWidth?: number;   // default 8
+  score: number;
+  size?: number;
+  strokeWidth?: number;
   className?: string;
 }
 
@@ -14,18 +18,20 @@ function scoreColor(score: number): string {
   return "var(--color-ps-err)";
 }
 
-export function ScoreRing({
-  score,
-  size = 110,
-  strokeWidth = 8,
-  className,
-}: ScoreRingProps) {
-  const clamped = Math.max(0, Math.min(100, score));
-  const r = (size - strokeWidth) / 2;
+export function ScoreRing({ score, size = 110, strokeWidth = 8, className }: ScoreRingProps) {
+  const clamped    = Math.max(0, Math.min(100, score));
+  const r          = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * r;
   const dashoffset = circumference * (1 - clamped / 100);
-  const center = size / 2;
-  const color = scoreColor(clamped);
+  const center     = size / 2;
+  const color      = scoreColor(clamped);
+
+  // Animate ring from 0 on mount, then follow score changes
+  const [animatedOffset, setAnimatedOffset] = useState(circumference);
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setAnimatedOffset(dashoffset));
+    return () => cancelAnimationFrame(raf);
+  }, [dashoffset]);
 
   return (
     <div
@@ -43,39 +49,34 @@ export function ScoreRing({
       >
         {/* Track */}
         <circle
-          cx={center}
-          cy={center}
-          r={r}
+          cx={center} cy={center} r={r}
           fill="none"
           stroke="var(--color-ps-border)"
           strokeWidth={strokeWidth}
         />
         {/* Progress */}
         <circle
-          cx={center}
-          cy={center}
-          r={r}
+          cx={center} cy={center} r={r}
           fill="none"
           stroke={color}
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
-          strokeDashoffset={dashoffset}
+          strokeDashoffset={animatedOffset}
           strokeLinecap="round"
-          style={{ transition: "stroke-dashoffset 0.6s ease, stroke 0.4s ease" }}
+          style={{ transition: "stroke-dashoffset 0.85s cubic-bezier(0.34,1.56,0.64,1), stroke 0.4s ease" }}
         />
       </svg>
 
-      {/* Center label */}
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span
+        <AnimatedNumber
+          value={clamped}
+          durationMs={850}
           className="font-mono font-extrabold leading-none tabular-nums"
           style={{ fontSize: size * 0.25, color }}
-        >
-          {clamped}
-        </span>
+        />
         <span
-          className="text-ps-ink-ghost tracking-widest uppercase"
-          style={{ fontSize: size * 0.08, marginTop: 2 }}
+          className="tracking-widest uppercase"
+          style={{ fontSize: size * 0.08, marginTop: 2, color: "var(--color-ps-ink-ghost)" }}
         >
           / 100
         </span>

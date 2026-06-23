@@ -1,6 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Spinner } from "@/components/atoms/Spinner";
+import { ComparePanel } from "@/components/organisms/ComparePanel";
+import { useStageTransition } from "@/lib/useStageTransition";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
 
@@ -96,6 +99,9 @@ export default function StudioPage() {
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
+
+  // Stage transition animation
+  const { displayedStage, transitionClass } = useStageTransition(currentStage);
 
   /* ── Persist brief on change ── */
   function setBrief(b: Brief) {
@@ -301,14 +307,18 @@ export default function StudioPage() {
         return (
           <Button variant="primary" size="md" onClick={handleGenerate}
             disabled={isGenerating || !brief.productName.trim()} style={gradientStyle} title="⌘↩">
-            {isGenerating ? "Generating…" : "Generate →"}
+            {isGenerating
+              ? <><Spinner size={14} color="var(--color-ps-accent-soft)" /> Generating…</>
+              : "Generate →"}
           </Button>
         );
       case "blueprint":
         return (
           <Button variant="primary" size="md" onClick={handleRunAudit}
             disabled={isAuditing || isGenerating || !pendingRef.current} style={gradientStyle} title="⌘↩">
-            {isAuditing ? "Auditing…" : "Run Audit →"}
+            {isAuditing
+              ? <><Spinner size={14} color="var(--color-ps-accent-soft)" /> Auditing…</>
+              : "Run Audit →"}
           </Button>
         );
       case "audit":
@@ -353,7 +363,12 @@ export default function StudioPage() {
   const pendingBrief     = pendingRef.current?.brief ?? brief;
 
   function renderCanvas() {
-    switch (currentStage) {
+    // If a section nav is active (compare / exports / slo), show it instead
+    if (activeSection === "compare") {
+      return <ComparePanel runs={runs} />;
+    }
+
+    switch (displayedStage) {
       case "brief":
         return <BriefView brief={brief} onChange={setBrief} isGenerating={isGenerating} />;
 
@@ -394,16 +409,22 @@ export default function StudioPage() {
         onSelectRun={handleSelectRun}
         onNewRun={handleNewRun}
         activeSection={activeSection}
-        onNavigate={(section) => setActiveSection(section)}
+        onNavigate={(section) => {
+          setActiveSection((prev) => prev === section ? undefined : section);
+        }}
         onOpenSettings={() => setSettingsOpen(true)}
         projectName={selectedRun?.brief.productName ?? brief.productName}
         currentStage={currentStage}
         completedStages={completedStages}
         onStageClick={(stage) => {
-          if (completedStages.includes(stage) || stage === currentStage) setCurrentStage(stage);
+          if (completedStages.includes(stage) || stage === currentStage) {
+            setCurrentStage(stage);
+            setActiveSection(undefined); // exit compare/exports/slo views
+          }
         }}
         primaryAction={primaryAction}
         secondaryAction={secondaryAction}
+        canvasClassName={activeSection ? "" : transitionClass}
       >
         {renderCanvas()}
       </StudioLayout>
