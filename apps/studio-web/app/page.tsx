@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Spinner } from "@/components/atoms/Spinner";
 import { ComparePanel } from "@/components/organisms/ComparePanel";
+import { SloPanel } from "@/components/organisms/SloPanel";
+import { ExportsPanel } from "@/components/organisms/ExportsPanel";
+import { OnboardingHero } from "@/components/organisms/OnboardingHero";
+import { ShortcutsModal } from "@/components/molecules/ShortcutsModal";
 import { useStageTransition } from "@/lib/useStageTransition";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
@@ -94,8 +98,10 @@ export default function StudioPage() {
   const [isAuditing, setIsAuditing]       = useState(false);
   const [blueprintTab, setBlueprintTab]   = useState<string>("blueprint");
   const [selectedTheme, setSelectedTheme] = useState<ThemeTokens | null>(null);
-  const [reviewOpen, setReviewOpen]       = useState(false);
-  const [settingsOpen, setSettingsOpen]   = useState(false);
+  const [reviewOpen, setReviewOpen]             = useState(false);
+  const [settingsOpen, setSettingsOpen]         = useState(false);
+  const [shortcutsOpen, setShortcutsOpen]       = useState(false);
+  const [onboardingDismissed, setOnboardingDismissed] = useState(false);
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
@@ -287,6 +293,10 @@ export default function StudioPage() {
         e.preventDefault();
         setSettingsOpen((o) => !o);
       }
+      if (meta && e.key === "/") {
+        e.preventDefault();
+        setShortcutsOpen((o) => !o);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
@@ -362,15 +372,36 @@ export default function StudioPage() {
   const pendingBlueprint = pendingRef.current?.blueprint ?? null;
   const pendingBrief     = pendingRef.current?.brief ?? brief;
 
+  // Onboarding: show hero above brief form on very first visit
+  const showOnboarding = runs.length === 0 && !onboardingDismissed;
+
   function renderCanvas() {
-    // If a section nav is active (compare / exports / slo), show it instead
-    if (activeSection === "compare") {
-      return <ComparePanel runs={runs} />;
+    // Section nav overrides (compare / exports / slo)
+    if (activeSection === "compare") return <ComparePanel runs={runs} />;
+    if (activeSection === "slo")     return <SloPanel runs={runs} passThreshold={settings.auditScoreThreshold} />;
+    if (activeSection === "exports") {
+      return (
+        <ExportsPanel
+          runs={runs}
+          onOpenRun={(id) => {
+            setSelectedRunId(id);
+            setActiveSection(undefined);
+            setCurrentStage("export");
+          }}
+        />
+      );
     }
 
     switch (displayedStage) {
       case "brief":
-        return <BriefView brief={brief} onChange={setBrief} isGenerating={isGenerating} />;
+        return (
+          <>
+            {showOnboarding && (
+              <OnboardingHero onDismiss={() => setOnboardingDismissed(true)} />
+            )}
+            <BriefView brief={brief} onChange={setBrief} isGenerating={isGenerating} />
+          </>
+        );
 
       case "blueprint":
         return (
@@ -445,6 +476,11 @@ export default function StudioPage() {
           setSettingsOpen(false);
           toast("Settings saved", "success");
         }}
+      />
+
+      <ShortcutsModal
+        isOpen={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
       />
     </>
   );

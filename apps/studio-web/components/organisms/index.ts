@@ -14,3 +14,6 @@ export { CopyPanel } from "./CopyPanel";
 export { SettingsDrawer } from "./SettingsDrawer";
 export type { AppSettings } from "./SettingsDrawer";
 export { ComparePanel } from "./ComparePanel";
+export { SloPanel } from "./SloPanel";
+export { ExportsPanel } from "./ExportsPanel";
+export { OnboardingHero } from "./OnboardingHero";

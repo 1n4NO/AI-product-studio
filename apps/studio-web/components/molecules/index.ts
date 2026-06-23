@@ -8,3 +8,4 @@ export { RunItem } from "./RunItem";
 export type { RunSummary, RunReviewStatus } from "./RunItem";
 export { Tabs } from "./Tabs";
 export type { TabItem } from "./Tabs";
+export { ShortcutsModal } from "./ShortcutsModal";
