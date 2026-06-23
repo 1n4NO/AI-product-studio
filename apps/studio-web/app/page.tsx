@@ -10,6 +10,10 @@ import { TemplateDrawer } from "@/components/organisms/TemplateDrawer";
 import { PreviewPane } from "@/components/organisms/PreviewPane";
 import { renderPageHtml } from "@/lib/renderHtml";
 import { ShortcutsModal } from "@/components/molecules/ShortcutsModal";
+import { CommandPalette } from "@/components/molecules/CommandPalette";
+import type { CommandItem } from "@/components/molecules/CommandPalette";
+import { AutosaveIndicator } from "@/components/atoms/AutosaveIndicator";
+import { useCommandPaletteShortcut } from "@/lib/useCommandPalette";
 import { useStageTransition } from "@/lib/useStageTransition";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
@@ -33,6 +37,7 @@ import type { RunSummary } from "@/components/molecules/RunItem";
 import type { StudioRun, AuditFinding } from "@/lib/types";
 import { useToast } from "@/lib/toast";
 import { storage, STORAGE_KEYS } from "@/lib/persistence";
+import { BRIEF_TEMPLATES } from "@/lib/briefTemplates";
 
 /* ─── Constants ──────────────────────────────── */
 
@@ -96,6 +101,8 @@ export default function StudioPage() {
   const [shortcutsOpen, setShortcutsOpen]             = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
   const [templateDrawerOpen, setTemplateDrawerOpen]   = useState(false);
+  const [cmdOpen, setCmdOpen]                         = useState(false);
+  const [briefSavedAt, setBriefSavedAt]               = useState<number>(0);
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
@@ -107,6 +114,7 @@ export default function StudioPage() {
   function setBrief(b: Brief) {
     setBriefRaw(b);
     storage.set(STORAGE_KEYS.brief, b);
+    setBriefSavedAt(Date.now());
   }
 
   /* ── Persist runs on change ── */
@@ -291,11 +299,141 @@ export default function StudioPage() {
         e.preventDefault();
         setShortcutsOpen((o) => !o);
       }
+      if (meta && e.key === "k") {
+        e.preventDefault();
+        setCmdOpen((o) => !o);
+      }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStage, isGenerating, isAuditing, brief, selectedRun]);
+
+  /* ── Command palette items ── */
+  const commandItems = useMemo<CommandItem[]>(() => {
+    const close = () => setCmdOpen(false);
+    const items: CommandItem[] = [];
+
+    // ── ACTIONS ──
+    items.push({
+      id: "generate", section: "actions", icon: "✦",
+      label: "Generate blueprint",
+      description: "Run AI generation on the current brief",
+      shortcut: ["⌘", "↩"],
+      disabled: currentStage !== "brief" || isGenerating || !brief.productName.trim(),
+      action: () => { close(); handleGenerate(); },
+    });
+    items.push({
+      id: "run-audit", section: "actions", icon: "◈",
+      label: "Run audit",
+      description: "Score the generated blueprint for UX quality",
+      shortcut: ["⌘", "↩"],
+      disabled: currentStage !== "blueprint" || isAuditing || !pendingRef.current,
+      action: () => { close(); handleRunAudit(); },
+    });
+    if (selectedRun) {
+      items.push({
+        id: "re-audit", section: "actions", icon: "↺",
+        label: "Re-audit current run",
+        description: `Re-run audit for Run #${selectedRun.runNumber}`,
+        shortcut: ["⌘", "⇧", "R"],
+        disabled: isAuditing,
+        action: () => { close(); handleReAudit(); },
+      });
+      items.push({
+        id: "review", section: "actions", icon: "◧",
+        label: "Open review drawer",
+        shortcut: ["⌘", "⇧", "V"],
+        action: () => { close(); setReviewOpen(true); },
+      });
+      items.push({
+        id: "export", section: "actions", icon: "↑",
+        label: "Proceed to Export",
+        description: "Jump to the Export stage",
+        action: () => { close(); setCurrentStage("export"); setActiveSection(undefined); },
+      });
+    }
+    items.push({
+      id: "new-run", section: "actions", icon: "＋",
+      label: "New run",
+      description: "Start a fresh brief from scratch",
+      action: () => { close(); handleNewRun(); },
+    });
+    items.push({
+      id: "templates", section: "actions", icon: "◧",
+      label: "Load brief template",
+      description: "Pick from 6 industry presets",
+      action: () => { close(); setTemplateDrawerOpen(true); },
+    });
+    items.push({
+      id: "settings", section: "actions", icon: "⚙",
+      label: "Open settings",
+      shortcut: ["⌘", ","],
+      action: () => { close(); setSettingsOpen(true); },
+    });
+    items.push({
+      id: "shortcuts", section: "actions", icon: "⌨",
+      label: "Keyboard shortcuts",
+      shortcut: ["⌘", "/"],
+      action: () => { close(); setShortcutsOpen(true); },
+    });
+
+    // ── NAVIGATION ──
+    const stages: Array<{ id: Stage; label: string; icon: string }> = [
+      { id: "brief",     label: "Brief",     icon: "✦" },
+      { id: "blueprint", label: "Blueprint", icon: "◧" },
+      { id: "audit",     label: "Audit",     icon: "◈" },
+      { id: "export",    label: "Export",    icon: "↑" },
+    ];
+    stages.forEach(({ id: stageId, label, icon }) => {
+      const available = completedStages.includes(stageId) || stageId === currentStage;
+      items.push({
+        id: `nav-stage-${stageId}`, section: "navigate", icon,
+        label: `Go to ${label}`,
+        disabled: !available,
+        action: () => { close(); setCurrentStage(stageId); setActiveSection(undefined); },
+      });
+    });
+    const navSections: Array<{ id: SidebarSection; label: string; icon: string }> = [
+      { id: "compare", label: "Compare Runs",  icon: "⚖" },
+      { id: "exports", label: "Export History", icon: "↑" },
+      { id: "slo",     label: "SLO Monitor",   icon: "◈" },
+    ];
+    navSections.forEach(({ id: secId, label, icon }) => {
+      items.push({
+        id: `nav-sec-${secId}`, section: "navigate", icon,
+        label,
+        action: () => { close(); setActiveSection(secId); },
+      });
+    });
+
+    // ── TEMPLATES ──
+    BRIEF_TEMPLATES.forEach((t) => {
+      items.push({
+        id: `tmpl-${t.id}`, section: "templates", icon: t.icon,
+        label: t.label,
+        description: t.description,
+        action: () => {
+          close();
+          setBrief(t.brief);
+          toast(`Template loaded: ${t.label}`, "info");
+        },
+      });
+    });
+
+    // ── RECENT RUNS ──
+    runs.slice(0, 6).forEach((run) => {
+      items.push({
+        id: `run-${run.id}`, section: "runs", icon: "◎",
+        label: `${run.brief.productName} · Run #${run.runNumber}`,
+        description: `Score ${run.auditReport.score}/100 · ${run.review.status === "approved" ? "✓ Approved" : run.review.status === "rejected" ? "✗ Rejected" : "Pending review"}`,
+        action: () => { close(); handleSelectRun(run.id); },
+      });
+    });
+
+    return items;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStage, isGenerating, isAuditing, brief, selectedRun, completedStages, runs, pendingRef.current]);
 
   /* ── Top-bar actions ── */
   const gradientStyle = {
@@ -482,6 +620,7 @@ export default function StudioPage() {
         primaryAction={primaryAction}
         secondaryAction={secondaryAction}
         canvasClassName={activeSection ? "" : transitionClass}
+        autosaveNode={currentStage === "brief" ? <AutosaveIndicator savedAt={briefSavedAt} /> : undefined}
       >
         {renderCanvas()}
       </StudioLayout>
@@ -546,6 +685,12 @@ export default function StudioPage() {
           setOnboardingDismissed(false); // reset so hero reappears if they go back
           toast("Template loaded — edit any field and hit Generate →", "info");
         }}
+      />
+
+      <CommandPalette
+        isOpen={cmdOpen}
+        onClose={() => setCmdOpen(false)}
+        items={commandItems}
       />
     </>
   );

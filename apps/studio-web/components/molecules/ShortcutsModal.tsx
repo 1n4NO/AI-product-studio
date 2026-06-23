@@ -11,7 +11,8 @@ const SECTIONS = [
   {
     title: "Navigation",
     shortcuts: [
-      { keys: ["⌘", "↩"],       desc: "Advance to next stage"       },
+      { keys: ["⌘", "K"],        desc: "Open command palette"         },
+      { keys: ["⌘", "↩"],        desc: "Advance to next stage"        },
       { keys: ["⌘", ","],        desc: "Open settings"                },
       { keys: ["⌘", "/"],        desc: "Show keyboard shortcuts"      },
       { keys: ["Esc"],           desc: "Close modals & drawers"       },

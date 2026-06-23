@@ -35,6 +35,8 @@ interface StudioLayoutProps {
 
   /** Extra class applied to the scrollable canvas <main> — used for transitions */
   canvasClassName?: string;
+  /** Node rendered between the stage bar and action buttons (e.g. AutosaveIndicator) */
+  autosaveNode?: React.ReactNode;
   className?: string;
 }
 
@@ -54,6 +56,7 @@ export function StudioLayout({
   primaryAction,
   secondaryAction,
   canvasClassName,
+  autosaveNode,
   className,
 }: StudioLayoutProps) {
   return (
@@ -73,7 +76,7 @@ export function StudioLayout({
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Top bar */}
         <header
-          className="flex items-center justify-between px-5 border-b border-ps-border bg-ps-canvas shrink-0"
+          className="relative flex items-center justify-between px-5 border-b border-ps-border bg-ps-canvas shrink-0"
           style={{ height: 52 }}
         >
           {/* Left: project name + stage stepper */}
@@ -87,6 +90,13 @@ export function StudioLayout({
               onStageClick={onStageClick}
             />
           </div>
+
+          {/* Centre: autosave indicator */}
+          {autosaveNode && (
+            <div className="absolute left-1/2 -translate-x-1/2">
+              {autosaveNode}
+            </div>
+          )}
 
           {/* Right: action buttons */}
           {(secondaryAction || primaryAction) && (

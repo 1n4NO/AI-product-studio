@@ -9,3 +9,5 @@ export type { RunSummary, RunReviewStatus } from "./RunItem";
 export { Tabs } from "./Tabs";
 export type { TabItem } from "./Tabs";
 export { ShortcutsModal } from "./ShortcutsModal";
+export { CommandPalette } from "./CommandPalette";
+export type { CommandItem, CommandSection } from "./CommandPalette";
