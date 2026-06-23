@@ -6,6 +6,7 @@ import { ComparePanel } from "@/components/organisms/ComparePanel";
 import { SloPanel } from "@/components/organisms/SloPanel";
 import { ExportsPanel } from "@/components/organisms/ExportsPanel";
 import { OnboardingHero } from "@/components/organisms/OnboardingHero";
+import { TemplateDrawer } from "@/components/organisms/TemplateDrawer";
 import { ShortcutsModal } from "@/components/molecules/ShortcutsModal";
 import { useStageTransition } from "@/lib/useStageTransition";
 import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
@@ -100,8 +101,9 @@ export default function StudioPage() {
   const [selectedTheme, setSelectedTheme] = useState<ThemeTokens | null>(null);
   const [reviewOpen, setReviewOpen]             = useState(false);
   const [settingsOpen, setSettingsOpen]         = useState(false);
-  const [shortcutsOpen, setShortcutsOpen]       = useState(false);
+  const [shortcutsOpen, setShortcutsOpen]             = useState(false);
   const [onboardingDismissed, setOnboardingDismissed] = useState(false);
+  const [templateDrawerOpen, setTemplateDrawerOpen]   = useState(false);
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
@@ -343,6 +345,13 @@ export default function StudioPage() {
   })();
 
   const secondaryAction = (() => {
+    if (currentStage === "brief") {
+      return (
+        <Button variant="ghost" size="md" onClick={() => setTemplateDrawerOpen(true)}>
+          Templates
+        </Button>
+      );
+    }
     if (currentStage === "blueprint") {
       return (
         <Button variant="ghost" size="md" onClick={handleGenerate} disabled={isGenerating}>
@@ -481,6 +490,16 @@ export default function StudioPage() {
       <ShortcutsModal
         isOpen={shortcutsOpen}
         onClose={() => setShortcutsOpen(false)}
+      />
+
+      <TemplateDrawer
+        isOpen={templateDrawerOpen}
+        onClose={() => setTemplateDrawerOpen(false)}
+        onSelect={(t) => {
+          setBrief(t);
+          setOnboardingDismissed(false); // reset so hero reappears if they go back
+          toast("Template loaded — edit any field and hit Generate →", "info");
+        }}
       />
     </>
   );

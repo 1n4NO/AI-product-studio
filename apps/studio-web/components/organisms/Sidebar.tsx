@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/atoms/Button";
+import { ThemeToggle } from "@/components/atoms/ThemeToggle";
 import { RunItem } from "@/components/molecules/RunItem";
 import type { RunSummary } from "@/components/molecules/RunItem";
 import { cn } from "@/lib/cn";
@@ -112,6 +113,9 @@ export function Sidebar({
             {item.label}
           </button>
         ))}
+        {/* Theme toggle */}
+        <ThemeToggle />
+
         {/* Settings */}
         <button
           onClick={onOpenSettings}

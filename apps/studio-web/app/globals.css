@@ -50,6 +50,28 @@
 }
 
 /* ─────────────────────────────────────────
+   Light Theme Override
+   Applied when html[data-theme="light"]
+   Accent / semantic / severity colours
+   remain identical in both themes.
+   ───────────────────────────────────────── */
+html[data-theme="light"] {
+  --color-ps-canvas:        #f4f4f8;
+  --color-ps-surface:       #ffffff;
+  --color-ps-raised:        #ededf5;
+
+  --color-ps-border:        #d6d6e8;
+  --color-ps-border-subtle: #eaeaf2;
+
+  --color-ps-ink:           #0a0a1a;
+  --color-ps-ink-dim:       #40406a;
+  --color-ps-ink-ghost:     #8888aa;
+
+  --color-ps-accent-tint:   #f0ecff;
+  --color-ps-accent-glow:   #e2d9ff;
+}
+
+/* ─────────────────────────────────────────
    Stage Transition Keyframes
    ───────────────────────────────────────── */
 @keyframes ps-stage-in {

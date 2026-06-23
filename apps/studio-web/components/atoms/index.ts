@@ -11,3 +11,4 @@ export { ScoreRing } from "./ScoreRing";
 export { ToastStack } from "./ToastStack";
 export { Spinner } from "./Spinner";
 export { AnimatedNumber } from "./AnimatedNumber";
+export { ThemeToggle } from "./ThemeToggle";
