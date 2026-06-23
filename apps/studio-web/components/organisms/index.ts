@@ -8,3 +8,5 @@ export { BriefView } from "./BriefView";
 export { BlueprintView } from "./BlueprintView";
 export { AuditPanel } from "./AuditPanel";
 export { ExportView } from "./ExportView";
+export { ThemePanel } from "./ThemePanel";
+export { ReviewDrawer } from "./ReviewDrawer";

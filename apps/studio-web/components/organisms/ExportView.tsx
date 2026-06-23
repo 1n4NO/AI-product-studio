@@ -88,7 +88,7 @@ export function ExportView({ run, baselineRun, onExport }: ExportViewProps) {
           </h3>
           <div className="flex flex-col divide-y divide-ps-border">
             {CHECKS.map(({ label, key }) => {
-              const failed = violationCodes.has(key) ||
+              const failed = violationCodes.has(key as Parameters<typeof violationCodes.has>[0]) ||
                 (key === "schema" && false) ||
                 (key === "content" && false) ||
                 (key === "accessibility" && run.auditReport.findings.some(f => f.severity === "critical"));

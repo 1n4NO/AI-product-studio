@@ -10,6 +10,7 @@ interface PublicEnv {
 
 interface ServerEnv extends PublicEnv {
   INTERNAL_API_KEY?: string;
+  ANTHROPIC_API_KEY?: string;
   OTEL_EXPORTER_OTLP_ENDPOINT?: string;
 }
 
@@ -50,6 +51,12 @@ export function getServerEnv(): ServerEnv {
   return {
     ...getPublicEnv(),
     INTERNAL_API_KEY: optional("INTERNAL_API_KEY"),
+    ANTHROPIC_API_KEY: optional("ANTHROPIC_API_KEY"),
     OTEL_EXPORTER_OTLP_ENDPOINT: optional("OTEL_EXPORTER_OTLP_ENDPOINT")
   };
+}
+
+/** Returns the Anthropic API key or undefined (callers must handle the missing-key case). */
+export function getAnthropicKey(): string | undefined {
+  return process.env.ANTHROPIC_API_KEY?.trim() || undefined;
 }

@@ -28,8 +28,10 @@ export function middleware(request: NextRequest) {
     );
   }
 
+  // In development there is no auth system yet — allow all local requests through.
+  const isDev = process.env.NODE_ENV === "development";
   const token = request.cookies.get(AUTH_COOKIE_NAME)?.value;
-  if (!token) {
+  if (!isDev && !token) {
     return withSecurityHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
   }
 

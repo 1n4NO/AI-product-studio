@@ -1,15 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { Brief, PageBlueprint, AuditReport } from "@product-studio/shared-types";
+import { useCallback, useMemo, useState } from "react";
+import type { Brief, PageBlueprint, AuditReport, ThemeTokens } from "@product-studio/shared-types";
 import { createUxAuditAdapter } from "@product-studio/ux-audit";
 
 import { StudioLayout } from "@/components/templates/StudioLayout";
 import { Button } from "@/components/atoms/Button";
+import { Tabs } from "@/components/molecules/Tabs";
 import { BriefView } from "@/components/organisms/BriefView";
 import { BlueprintView } from "@/components/organisms/BlueprintView";
 import { AuditPanel } from "@/components/organisms/AuditPanel";
 import { ExportView } from "@/components/organisms/ExportView";
+import { ThemePanel } from "@/components/organisms/ThemePanel";
+import { ReviewDrawer } from "@/components/organisms/ReviewDrawer";
 import type { Stage } from "@/components/organisms/StageBar";
 import type { SidebarSection } from "@/components/organisms/Sidebar";
 import type { RunSummary } from "@/components/molecules/RunItem";
@@ -26,78 +29,60 @@ const INITIAL_BRIEF: Brief = {
   ctaGoal: "Start free trial",
 };
 
-/* ─── Helpers ────────────────────────────────── */
+/* ─── Fallback mock blueprint ────────────────── */
 
 function buildMockBlueprint(brief: Brief): PageBlueprint {
   return {
     title: `${brief.productName} — Page Blueprint`,
     summary: `Message architecture focused on ${brief.audience}.`,
     sections: [
-      {
-        id: "hero",
-        type: "hero",
-        intent: `Communicate the core value: "${brief.valueProposition}"`,
-        requiredComponents: ["headline", "subheadline", "primary-cta"],
-      },
-      {
-        id: "problem",
-        type: "problem",
-        intent: "Surface the pain point before the solution lands harder",
-        requiredComponents: ["problem-statement", "empathy-copy"],
-      },
-      {
-        id: "features",
-        type: "features",
-        intent: "Show credibility through concrete product capabilities",
-        requiredComponents: ["feature-grid", "proof-point", "icon-set"],
-      },
-      {
-        id: "social-proof",
-        type: "social-proof",
-        intent: "Build trust with real customer outcomes",
-        requiredComponents: ["testimonial-block", "logo-strip"],
-      },
-      {
-        id: "cta",
-        type: "cta",
-        intent: `Drive conversion: "${brief.ctaGoal}"`,
-        requiredComponents: ["cta-headline", "cta-button", "risk-reversal"],
-      },
+      { id: "hero",         type: "hero",         intent: `Lead with: "${brief.valueProposition}"`,       requiredComponents: ["headline", "subheadline", "primary-cta", "hero-visual"] },
+      { id: "problem",      type: "problem",      intent: "Validate the audience's pain first",            requiredComponents: ["pain-points-grid", "empathy-statement", "transition-hook"] },
+      { id: "solution",     type: "solution",     intent: `Position ${brief.productName} as the answer`,  requiredComponents: ["solution-headline", "benefit-pillars", "product-screenshot"] },
+      { id: "features",     type: "features",     intent: "Build credibility with concrete capabilities",  requiredComponents: ["feature-grid", "feature-icons", "proof-metrics"] },
+      { id: "social-proof", type: "social-proof", intent: "Reduce risk with real customer outcomes",      requiredComponents: ["testimonial-carousel", "company-logo-strip", "outcome-stats"] },
+      { id: "cta",          type: "cta",          intent: `Drive: "${brief.ctaGoal}"`,                    requiredComponents: ["cta-headline", "primary-cta-button", "risk-reversal-copy"] },
     ],
   };
 }
 
 function renderMockHtml(brief: Brief, blueprint: PageBlueprint): string {
-  return `
-    <html lang="en">
-      <head><title>${brief.productName}</title><meta name="description" content="${brief.valueProposition}" /></head>
-      <main>
-        <h1>${brief.productName}</h1>
-        <p>${brief.valueProposition}</p>
-        <section>
-          <h2>${blueprint.sections[2]?.intent ?? "Features"}</h2>
-          <img src="/feature.png" alt="Feature preview" />
-          <img src="/screenshot.png" />
-        </section>
-        <button>${brief.ctaGoal}</button>
-      </main>
-    </html>
-  `;
+  return `<html lang="en">
+    <head><title>${brief.productName}</title><meta name="description" content="${brief.valueProposition}" /></head>
+    <main>
+      <h1>${brief.productName}</h1>
+      <p>${brief.valueProposition}</p>
+      <section><h2>${blueprint.sections[2]?.intent ?? "Features"}</h2>
+        <img src="/feature.png" alt="Feature preview" /><img src="/screenshot.png" />
+      </section>
+      <button>${brief.ctaGoal}</button>
+    </main>
+  </html>`;
 }
 
 function makeId(prefix: string): string {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 }
 
+/* ─── Blueprint + Theme tabs ─────────────────── */
+
+const BLUEPRINT_TABS = [
+  { id: "blueprint", label: "Blueprint" },
+  { id: "theme",     label: "Theme" },
+];
+
 /* ─── Page ───────────────────────────────────── */
 
 export default function StudioPage() {
-  const [brief, setBrief] = useState<Brief>(INITIAL_BRIEF);
-  const [runs, setRuns] = useState<StudioRun[]>([]);
+  const [brief, setBrief]               = useState<Brief>(INITIAL_BRIEF);
+  const [runs, setRuns]                 = useState<StudioRun[]>([]);
   const [selectedRunId, setSelectedRunId] = useState<string>("");
   const [currentStage, setCurrentStage] = useState<Stage>("brief");
   const [activeSection, setActiveSection] = useState<SidebarSection | undefined>();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [blueprintTab, setBlueprintTab] = useState<string>("blueprint");
+  const [selectedTheme, setSelectedTheme] = useState<ThemeTokens | null>(null);
+  const [reviewOpen, setReviewOpen]     = useState(false);
 
   /* Derived */
   const selectedRun = useMemo(
@@ -119,9 +104,8 @@ export default function StudioPage() {
   );
 
   const completedStages = useMemo<Stage[]>(() => {
-    const stageOrder: Stage[] = ["brief", "blueprint", "audit", "export"];
-    const currentIndex = stageOrder.indexOf(currentStage);
-    return stageOrder.slice(0, currentIndex) as Stage[];
+    const order: Stage[] = ["brief", "blueprint", "audit", "export"];
+    return order.slice(0, order.indexOf(currentStage)) as Stage[];
   }, [currentStage]);
 
   /* Actions */
@@ -129,9 +113,22 @@ export default function StudioPage() {
     setIsGenerating(true);
     setCurrentStage("blueprint");
 
-    const blueprint = buildMockBlueprint(brief);
-    const html = renderMockHtml(brief, blueprint);
+    // Call real blueprint API, fall back to local mock
+    let blueprint: PageBlueprint;
+    try {
+      const res = await fetch("/api/protected/generate/blueprint", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(brief),
+      });
+      if (!res.ok) throw new Error("API error");
+      blueprint = (await res.json()) as PageBlueprint;
+    } catch {
+      console.warn("[Studio] Blueprint API failed — using client-side mock");
+      blueprint = buildMockBlueprint(brief);
+    }
 
+    const html = renderMockHtml(brief, blueprint);
     const adapter = createUxAuditAdapter();
     const auditReport: AuditReport = await adapter.runAudit({
       html,
@@ -157,9 +154,7 @@ export default function StudioPage() {
   function handleSelectRun(id: string) {
     setSelectedRunId(id);
     setActiveSection(undefined);
-    // If we have audit data for this run, jump to audit view
-    const run = runs.find((r) => r.id === id);
-    if (run) setCurrentStage("audit");
+    if (runs.find((r) => r.id === id)) setCurrentStage("audit");
   }
 
   function handleNewRun() {
@@ -169,9 +164,46 @@ export default function StudioPage() {
   }
 
   function handleAutoFix(_finding: AuditFinding) {
-    // Phase 4: wire real auto-fix
     console.info("Auto-fix requested for:", _finding.id);
   }
+
+  const handleApprove = useCallback((runId: string, note: string) => {
+    setRuns((prev) =>
+      prev.map((r) =>
+        r.id !== runId
+          ? r
+          : {
+              ...r,
+              review: {
+                status: "approved",
+                events: [
+                  ...r.review.events,
+                  { id: makeId("ev"), at: new Date().toISOString(), action: "approved", reviewer: "You", note },
+                ],
+              },
+            }
+      )
+    );
+  }, []);
+
+  const handleReject = useCallback((runId: string, note: string) => {
+    setRuns((prev) =>
+      prev.map((r) =>
+        r.id !== runId
+          ? r
+          : {
+              ...r,
+              review: {
+                status: "rejected",
+                events: [
+                  ...r.review.events,
+                  { id: makeId("ev"), at: new Date().toISOString(), action: "rejected", reviewer: "You", note },
+                ],
+              },
+            }
+      )
+    );
+  }, []);
 
   /* Top-bar actions per stage */
   const primaryAction = (() => {
@@ -213,9 +245,14 @@ export default function StudioPage() {
   const secondaryAction = (() => {
     if (currentStage === "audit" && selectedRun) {
       return (
-        <Button variant="ghost" size="md" onClick={handleGenerate} disabled={isGenerating}>
-          Re-Audit
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="ghost" size="md" onClick={() => setReviewOpen(true)}>
+            Review
+          </Button>
+          <Button variant="ghost" size="md" onClick={handleGenerate} disabled={isGenerating}>
+            Re-Audit
+          </Button>
+        </div>
       );
     }
     if (currentStage === "export") {
@@ -232,60 +269,73 @@ export default function StudioPage() {
   function renderCanvas() {
     switch (currentStage) {
       case "brief":
-        return (
-          <BriefView
-            brief={brief}
-            onChange={setBrief}
-            isGenerating={isGenerating}
-          />
-        );
+        return <BriefView brief={brief} onChange={setBrief} isGenerating={isGenerating} />;
+
       case "blueprint":
         return (
-          <BlueprintView
-            blueprint={selectedRun?.blueprint ?? null}
-            isGenerating={isGenerating}
-          />
+          <div className="flex flex-col gap-4 h-full">
+            <Tabs items={BLUEPRINT_TABS} activeId={blueprintTab} onChange={setBlueprintTab} />
+            <div
+              id={`tabpanel-blueprint`}
+              role="tabpanel"
+              aria-labelledby="tab-blueprint"
+              hidden={blueprintTab !== "blueprint"}
+              className="flex-1"
+            >
+              <BlueprintView blueprint={selectedRun?.blueprint ?? null} isGenerating={isGenerating} />
+            </div>
+            <div
+              id={`tabpanel-theme`}
+              role="tabpanel"
+              aria-labelledby="tab-theme"
+              hidden={blueprintTab !== "theme"}
+              className="flex-1"
+            >
+              <ThemePanel brief={brief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} />
+            </div>
+          </div>
         );
+
       case "audit":
         return (
-          <AuditPanel
-            auditReport={selectedRun?.auditReport ?? null}
-            onAutoFix={handleAutoFix}
-            isGenerating={isGenerating}
-          />
+          <AuditPanel auditReport={selectedRun?.auditReport ?? null} onAutoFix={handleAutoFix} isGenerating={isGenerating} />
         );
+
       case "export":
-        return (
-          <ExportView
-            run={selectedRun}
-          />
-        );
+        return <ExportView run={selectedRun} />;
     }
   }
 
   return (
-    <StudioLayout
-      runs={runSummaries}
-      selectedRunId={selectedRunId}
-      onSelectRun={handleSelectRun}
-      onNewRun={handleNewRun}
-      activeSection={activeSection}
-      onNavigate={(section) => {
-        setActiveSection(section);
-      }}
-      projectName={selectedRun?.brief.productName ?? brief.productName}
-      currentStage={currentStage}
-      completedStages={completedStages}
-      onStageClick={(stage) => {
-        // Only allow clicking back to completed stages
-        if (completedStages.includes(stage) || stage === currentStage) {
-          setCurrentStage(stage);
-        }
-      }}
-      primaryAction={primaryAction}
-      secondaryAction={secondaryAction}
-    >
-      {renderCanvas()}
-    </StudioLayout>
+    <>
+      <StudioLayout
+        runs={runSummaries}
+        selectedRunId={selectedRunId}
+        onSelectRun={handleSelectRun}
+        onNewRun={handleNewRun}
+        activeSection={activeSection}
+        onNavigate={(section) => setActiveSection(section)}
+        projectName={selectedRun?.brief.productName ?? brief.productName}
+        currentStage={currentStage}
+        completedStages={completedStages}
+        onStageClick={(stage) => {
+          if (completedStages.includes(stage) || stage === currentStage) {
+            setCurrentStage(stage);
+          }
+        }}
+        primaryAction={primaryAction}
+        secondaryAction={secondaryAction}
+      >
+        {renderCanvas()}
+      </StudioLayout>
+
+      <ReviewDrawer
+        run={selectedRun}
+        isOpen={reviewOpen}
+        onClose={() => setReviewOpen(false)}
+        onApprove={handleApprove}
+        onReject={handleReject}
+      />
+    </>
   );
 }

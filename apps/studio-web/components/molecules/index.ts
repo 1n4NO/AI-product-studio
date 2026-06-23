@@ -6,3 +6,5 @@ export type { AuditCategory } from "./CategoryBar";
 export { FindingCard } from "./FindingCard";
 export { RunItem } from "./RunItem";
 export type { RunSummary, RunReviewStatus } from "./RunItem";
+export { Tabs } from "./Tabs";
+export type { TabItem } from "./Tabs";
