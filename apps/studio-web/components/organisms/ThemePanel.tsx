@@ -5,10 +5,13 @@ import type { ThemeTokens, Tone, Brief } from "@product-studio/shared-types";
 import { Button } from "@/components/atoms/Button";
 import { cn } from "@/lib/cn";
 
+import type { ProviderConfig } from "@/lib/providers";
+
 interface ThemePanelProps {
   brief: Brief;
   selectedTheme: ThemeTokens | null;
   onSelectTheme: (theme: ThemeTokens) => void;
+  providerConfig?: ProviderConfig | null;
 }
 
 interface ColorSwatch {
@@ -128,7 +131,7 @@ function ThemeCard({
   );
 }
 
-export function ThemePanel({ brief, selectedTheme, onSelectTheme }: ThemePanelProps) {
+export function ThemePanel({ brief, selectedTheme, onSelectTheme, providerConfig }: ThemePanelProps) {
   const [variants, setVariants] = useState<ThemeTokens[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [tone, setTone] = useState<Tone>(brief.tone);
@@ -143,6 +146,11 @@ export function ThemePanel({ brief, selectedTheme, onSelectTheme }: ThemePanelPr
           tone: t,
           productName: brief.productName,
           brief: brief.valueProposition,
+          ...(providerConfig && providerConfig.provider !== "auto" && {
+            _provider: providerConfig.provider,
+            _apiKey:   providerConfig.apiKey,
+            _model:    providerConfig.model,
+          }),
         }),
       });
       if (!res.ok) {

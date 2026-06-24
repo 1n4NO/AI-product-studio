@@ -5,10 +5,12 @@ import type { Brief, PageBlueprint } from "@product-studio/shared-types";
 import type { PageCopy, SectionCopy } from "@/app/api/protected/generate/copy/route";
 import { Button } from "@/components/atoms/Button";
 import { cn } from "@/lib/cn";
+import type { ProviderConfig } from "@/lib/providers";
 
 interface CopyPanelProps {
   brief: Brief;
   blueprint: PageBlueprint | null;
+  providerConfig?: ProviderConfig | null;
 }
 
 const SECTION_TYPE_LABELS: Record<string, string> = {
@@ -192,7 +194,7 @@ function CopyCard({
 
 /* ─── CopyPanel ─────────────────────────────── */
 
-export function CopyPanel({ brief, blueprint }: CopyPanelProps) {
+export function CopyPanel({ brief, blueprint, providerConfig }: CopyPanelProps) {
   const [pageCopy, setPageCopy] = useState<PageCopy | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [allCopied, setAllCopied] = useState(false);
@@ -204,7 +206,15 @@ export function CopyPanel({ brief, blueprint }: CopyPanelProps) {
       const res = await fetch("/api/protected/generate/copy", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ brief, blueprint }),
+        body: JSON.stringify({
+          brief,
+          blueprint,
+          ...(providerConfig && providerConfig.provider !== "auto" && {
+            _provider: providerConfig.provider,
+            _apiKey:   providerConfig.apiKey,
+            _model:    providerConfig.model,
+          }),
+        }),
       });
       if (!res.ok) {
         const body = await res.text().catch(() => "(no body)");

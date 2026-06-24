@@ -513,6 +513,122 @@ function UseCases() {
   );
 }
 
+// ─── Providers section ────────────────────────────────────────────────────────
+
+const PROVIDER_CARDS = [
+  {
+    icon: "◆",
+    name: "Anthropic Claude",
+    badge: "Recommended",
+    description: "Highest quality outputs. Excellent at structured JSON generation and UX reasoning.",
+    note: "API key · Paid",
+  },
+  {
+    icon: "⬡",
+    name: "OpenAI",
+    badge: null,
+    description: "GPT-4o. Fast, reliable, and broadly capable across all generation tasks.",
+    note: "API key · Paid",
+  },
+  {
+    icon: "✦",
+    name: "Google Gemini",
+    badge: null,
+    description: "Gemini 1.5 Pro. Great multimodal reasoning and long-context understanding.",
+    note: "API key · Free tier available",
+  },
+  {
+    icon: "⬢",
+    name: "Ollama (Local)",
+    badge: "Private",
+    description: "Run llama3.2, mistral, or gemma2 fully on-device. No data leaves your machine.",
+    note: "No key required · 100% private",
+  },
+];
+
+function Providers() {
+  return (
+    <section className="mx-auto max-w-5xl px-6 py-24">
+      <div className="flex flex-col items-center text-center mb-14">
+        <SectionLabel>AI providers</SectionLabel>
+        <h2
+          className="mt-3 text-[clamp(1.5rem,3.5vw,2.5rem)] font-bold tracking-tight"
+          style={{ color: "var(--color-ps-ink)" }}
+        >
+          Works with the provider you already use
+        </h2>
+        <p
+          className="mt-4 max-w-xl text-[15px] leading-relaxed"
+          style={{ color: "var(--color-ps-ink-dim)" }}
+        >
+          Bring your own API key or run entirely local with Ollama.
+          A guided wizard walks you through setup every time you open the Studio.
+        </p>
+
+        {/* Privacy callout */}
+        <div
+          className="mt-6 inline-flex items-center gap-2.5 rounded-xl px-5 py-2.5"
+          style={{
+            background: "rgba(52,211,153,0.06)",
+            border: "1px solid rgba(52,211,153,0.18)",
+          }}
+        >
+          <span className="text-[14px]">🔒</span>
+          <p className="text-[13px] font-medium" style={{ color: "rgba(134,239,172,0.9)" }}>
+            API keys live in memory only — never stored, never logged, cleared on tab close.
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        {PROVIDER_CARDS.map((p) => (
+          <div
+            key={p.name}
+            className="relative flex flex-col gap-3 rounded-2xl p-6"
+            style={{
+              background: "var(--color-ps-surface)",
+              border: "1px solid var(--color-ps-border)",
+            }}
+          >
+            {p.badge && (
+              <span
+                className="absolute top-4 right-4 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-widest"
+                style={{
+                  background: p.badge === "Recommended"
+                    ? "rgba(99,102,241,0.15)"
+                    : "rgba(52,211,153,0.12)",
+                  color: p.badge === "Recommended"
+                    ? "rgba(165,180,252,0.9)"
+                    : "rgba(52,211,153,0.9)",
+                }}
+              >
+                {p.badge}
+              </span>
+            )}
+            <span
+              className="text-[24px] leading-none"
+              style={{ color: "var(--color-ps-accent)" }}
+            >
+              {p.icon}
+            </span>
+            <div>
+              <p className="text-[15px] font-semibold" style={{ color: "var(--color-ps-ink)" }}>
+                {p.name}
+              </p>
+              <p className="mt-1 text-[13px] leading-relaxed" style={{ color: "var(--color-ps-ink-dim)" }}>
+                {p.description}
+              </p>
+            </div>
+            <p className="text-[11px] font-medium" style={{ color: "var(--color-ps-ink-ghost)" }}>
+              {p.note}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function FinalCta() {
   return (
     <section className="mx-auto max-w-5xl px-6 py-28 text-center">
@@ -598,6 +714,7 @@ export default function LandingPage() {
         <Pipeline />
         <Features />
         <AuditEngine />
+        <Providers />
         <UseCases />
         <FinalCta />
       </main>

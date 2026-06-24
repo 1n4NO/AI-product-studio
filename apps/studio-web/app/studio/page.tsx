@@ -38,6 +38,8 @@ import type { StudioRun, AuditFinding } from "@/lib/types";
 import { useToast } from "@/lib/toast";
 import { storage, STORAGE_KEYS } from "@/lib/persistence";
 import { BRIEF_TEMPLATES } from "@/lib/briefTemplates";
+import { ProviderWizard } from "@/components/organisms/ProviderWizard";
+import type { ProviderConfig } from "@/lib/providers";
 
 /* ─── Constants ──────────────────────────────── */
 
@@ -104,6 +106,8 @@ export default function StudioPage() {
   const [templateDrawerOpen, setTemplateDrawerOpen]   = useState(false);
   const [cmdOpen, setCmdOpen]                         = useState(false);
   const [briefSavedAt, setBriefSavedAt]               = useState<number>(0);
+  // null = wizard not yet completed; set once user picks a provider
+  const [providerConfig, setProviderConfig]           = useState<ProviderConfig | null>(null);
 
   // Blueprint lives here between Generate and Run Audit
   const pendingRef = useRef<{ brief: Brief; blueprint: PageBlueprint } | null>(null);
@@ -172,7 +176,14 @@ export default function StudioPage() {
       const res = await fetch("/api/protected/generate/blueprint", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(brief),
+        body: JSON.stringify({
+          ...brief,
+          ...(providerConfig && providerConfig.provider !== "auto" && {
+            _provider: providerConfig.provider,
+            _apiKey:   providerConfig.apiKey,
+            _model:    providerConfig.model,
+          }),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       blueprint = (await res.json()) as PageBlueprint;
@@ -560,11 +571,11 @@ export default function StudioPage() {
             </div>
             <div role="tabpanel" id="tabpanel-theme" aria-labelledby="tab-theme"
               hidden={blueprintTab !== "theme"} className="flex-1 overflow-y-auto pt-5">
-              <ThemePanel brief={pendingBrief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} />
+              <ThemePanel brief={pendingBrief} selectedTheme={selectedTheme} onSelectTheme={setSelectedTheme} providerConfig={providerConfig} />
             </div>
             <div role="tabpanel" id="tabpanel-copy" aria-labelledby="tab-copy"
               hidden={blueprintTab !== "copy"} className="flex-1 overflow-y-auto pt-5">
-              <CopyPanel brief={pendingBrief} blueprint={pendingBlueprint} />
+              <CopyPanel brief={pendingBrief} blueprint={pendingBlueprint} providerConfig={providerConfig} />
             </div>
             <div role="tabpanel" id="tabpanel-preview" aria-labelledby="tab-preview"
               hidden={blueprintTab !== "preview"} className="flex-1 overflow-hidden pt-4">
@@ -606,6 +617,10 @@ export default function StudioPage() {
 
   return (
     <>
+      {providerConfig === null && (
+        <ProviderWizard onComplete={(cfg) => setProviderConfig(cfg)} />
+      )}
+
       <StudioLayout
         runs={runSummaries}
         selectedRunId={selectedRunId}

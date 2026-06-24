@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isBrief, isPageBlueprint } from "@product-studio/shared-types";
 import type { Brief, PageBlueprint } from "@product-studio/shared-types";
-import { callLLM, stripFences } from "@/lib/llm";
+import { callLLMWithConfig, stripFences } from "@/lib/llm";
+import { extractProviderConfig } from "@/lib/providers";
 
 export interface SectionCopy {
   sectionId: string;
@@ -161,6 +162,7 @@ export async function POST(request: NextRequest) {
   }
 
   const { brief, blueprint } = body;
+  const providerConfig = extractProviderConfig(body as unknown as Record<string, unknown>);
   const mockCopy = buildMockCopy(brief, blueprint);
 
   try {
@@ -177,12 +179,13 @@ ${blueprint.sections.map((s) => `- ${s.id} (${s.type}): ${s.intent}`).join("\n")
 
 Generate the copy JSON now.`;
 
-    const text = await callLLM(
+    const text = await callLLMWithConfig(
       [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user",   content: userPrompt },
       ],
-      { maxTokens: 2048 }
+      { maxTokens: 2048 },
+      providerConfig
     );
 
     if (text) {

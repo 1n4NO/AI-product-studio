@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isBrief, isPageBlueprint, type Brief, type PageBlueprint } from "@product-studio/shared-types";
-import { callLLM, stripFences } from "@/lib/llm";
+import { callLLMWithConfig, stripFences } from "@/lib/llm";
+import { extractProviderConfig } from "@/lib/providers";
 
 const SYSTEM_PROMPT = `You are a senior UX strategist and information architect.
 Given a product brief, produce a structured landing page blueprint as valid JSON.
@@ -44,6 +45,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
+  // Extract provider config before brief validation (extra fields are ignored by isBrief)
+  const providerConfig = extractProviderConfig(body as Record<string, unknown>);
+
   if (!isBrief(body)) {
     return NextResponse.json({ error: "Invalid brief payload" }, { status: 400 });
   }
@@ -61,12 +65,13 @@ export async function POST(request: NextRequest) {
 Generate the page blueprint JSON now.`;
 
   try {
-    const text = await callLLM(
+    const text = await callLLMWithConfig(
       [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user",   content: userPrompt },
       ],
-      { maxTokens: 1024 }
+      { maxTokens: 1024 },
+      providerConfig
     );
 
     if (text) {
