@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "noEmit": true
+  },
+  "include": [
+    "packages/shared-types/src/**/*.ts",
+    "packages/ux-audit/src/**/*.ts",
+    "packages/ux-audit/test/**/*.ts"
+  ]
+}
