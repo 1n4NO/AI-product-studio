@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createSloAlert, dispatchAlert, dryRunTransport, routeAlert, type SloBreach } from "@product-studio/agent-runtime";
+import { createSloAlert, dispatchAlert, dryRunTransport, routeAlert, type SloBreach } from "@/lib/agent-runtime-inline";
 
 interface Body {
   breach?: Partial<SloBreach>;

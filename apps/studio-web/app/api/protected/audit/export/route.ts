@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAuditLogStore } from "@product-studio/agent-runtime";
+import { createAuditLogStore } from "@/lib/agent-runtime-inline";
 
 export async function GET(request: NextRequest) {
   const store = createAuditLogStore();
